@@ -2197,4 +2197,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-}
+      }
