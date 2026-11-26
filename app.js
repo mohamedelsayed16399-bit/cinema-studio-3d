@@ -3245,6 +3245,50 @@ function buildDemoEid() {
   seek(0); applySun();
 }
 
+function buildDemoMatch() {
+  clearAll();
+  S.filmDur = 24; S.title = 'ماتش الحارة';
+  S.groundColor = 0x4a9a4a; S.skyColor = 0x8ac8f0; S.fogFar = 160; S.grade = 3; S.vig = 0.3; S.grain = 0.08; applyGround();
+  addProp('house', -26, -16, 1.8); addProp('house', 26, -16, 1.8); addProp('house', 0, -26, 2.1);
+  addProp('palm', -20, 12, 1.2); addProp('palm', 22, 10, 1.2); addProp('bench', -14, 14, 1.2); addProp('bench', 14, 14, 1.2);
+  for (let i = 0; i < 5; i++) { addProp('flag', -12 + i * 6, -13, 1.1); }
+  const cols = [[0xd63a3a, 0xffffff], [0x3a6ad6, 0xffffff]];
+  const a = [], b = [];
+  const nm = ['علي', 'حسن', 'مصطفى', 'سيف'];
+  for (let i = 0; i < 4; i++) {
+    a.push(addCharacter('أحمر ' + nm[i], { shirt: cols[0][0], pants: 0x222222, skin: 0xd9a06a, hair: 0x1a1a1a, hat: i === 0 ? 'cap' : '' }, -9, -6 + i * 4));
+    b.push(addCharacter('أزرق ' + nm[i], { shirt: cols[1][0], pants: 0x222222, skin: 0xc98f5e, hair: 0x2a1810 }, 9, -6 + i * 4));
+  }
+  a.forEach((o, i) => { o.track.actions.push({ type: 'walk', t0: 1, t1: 6 + i, fx: -9, fz: -6 + i * 4, tx: -1 + i, tz: -3 + i * 2 }); });
+  b.forEach((o, i) => { o.track.actions.push({ type: 'walk', t0: 1.5, t1: 7 + i, fx: 9, fz: -6 + i * 4, tx: 2 - i, tz: -2 + i * 2 }); });
+  a[1].track.actions.push({ type: 'gesture', name: 'jump', time: 12, dur: 2 });
+  a[1].track.actions.push({ type: 'gesture', name: 'cheer', time: 15, dur: 5 });
+  a[2].track.actions.push({ type: 'gesture', name: 'cheer', time: 15, dur: 5 });
+  b[0].track.actions.push({ type: 'gesture', name: 'cry', time: 14, dur: 5 });
+  [...a, ...b].forEach(pinWalks);
+  addCrowd(8, 0, 14);
+  const sh1 = addShot('صافرة البداية', 0, 8); sh1.transition = 'fade';
+  applyCamPreset(sh1, 'crane', [0, 0, 0], null);
+  const sh2 = addShot('الهجمة', 8, 16); sh2.transition = 'cut';
+  applyCamPreset(sh2, 'whip', [0, 0, 0], a[1].id);
+  const sh3 = addShot('الجووون', 16, 24); sh3.transition = 'fade';
+  applyCamPreset(sh3, 'hero', [0, 0, 3], a[1].id);
+  S.music.mood = 'happy';
+  S.sfx = [ { id: genId(), time: 0.5, type: 'bell' }, { id: genId(), time: 13, type: 'boom' }, { id: genId(), time: 15, type: 'magic' } ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'ماتش الحارة', style: 'card', color: '#ffe080' },
+    { id: genId(), time: 15.5, dur: 4, text: 'جووووون! ⚽', style: 'title', color: '#ffffff' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: a[1].id, time: 9, dur: 2.4, text: 'سلّمهالي!' },
+    { id: genId(), objId: a[1].id, time: 16.5, dur: 2.6, text: 'جوووون!' },
+    { id: genId(), objId: b[0].id, time: 18.5, dur: 2.4, text: 'يا خسارة!' },
+  ];
+  S.trails = 'none'; S.weather = 'none'; setWeather('none');
+  S.sun.tod = 0.4; S.sun.intensity = 1.8; S.ambient = 1.6;
+  seek(0); applySun();
+}
+
 function buildDemoRunway() {
   clearAll();
   S.filmDur = 26; S.title = 'عرض أزياء';
@@ -3374,6 +3418,7 @@ const GALLERY = [
   { e: '🎓', n: 'حفل التخرج', d: 'تكريم واحتفال وقبعات', f: () => buildDemoGrad(), c: ['بهجة', 'ليل'], g: ['#7a2ad6', '#1a1a2a'] },
   { e: '🕌', n: 'مولد الحي', d: 'أنوار وزحمة ومرور سريع بالكاميرا', f: () => buildDemoMoulid(), c: ['مصر', 'ليل', 'بهجة'], g: ['#ff9ad0', '#1c1030'] },
   { e: '👗', n: 'عرض أزياء', d: 'ممشى وأضواء ملونة وجمهور', f: () => buildDemoRunway(), c: ['بهجة', 'ليل'], g: ['#d02a6a', '#120e22'] },
+  { e: '⚽', n: 'ماتش الحارة', d: 'مباراة كورة في الحارة وهدف في الدقيقة الأخيرة', f: () => buildDemoMatch(), c: ['مصر', 'بهجة'], g: ['#3a9a4a', '#d63a3a'] },
   { e: '🎉', n: 'صباح العيد', d: 'زينة وعيدية وفرحة الأطفال', f: () => buildDemoEid(), c: ['مصر', 'بهجة'], g: ['#f2b84a', '#2a8ad0'] },
   { e: '⛺', n: 'ليلة تخييم', d: 'نار ونجوم وحكاية الجد في الصحراء', f: () => buildDemoCamp(), c: ['مصر', 'ليل', 'دراما'], g: ['#d98a3a', '#0a0a2a'] },
   { e: '🧺', n: 'سوق الجمعة', d: 'زحمة وبياعين وتوك توك بيعدي جنبك', f: () => buildDemoSouk(), c: ['مصر', 'بهجة'], g: ['#e0a040', '#6a4a2a'] },
