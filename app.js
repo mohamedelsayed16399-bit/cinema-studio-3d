@@ -447,6 +447,40 @@ export const PROP_DEFS = {
     const prop = mesh(new THREE.BoxGeometry(0.1, 1.2, 0.18), MAT(0x444a55), -2.4, 2.4, 0); prop.name = 'subprop'; g.add(prop);
     return g;
   }},
+  tuktuk: { name: 'توك توك', make() {
+    const g = new THREE.Group();
+    const w1 = mesh(new THREE.TorusGeometry(0.34, 0.12, 8, 14), MAT(0x1a1c22), 0, 0.45, 1.1); w1.rotation.y = Math.PI / 2; w1.name = 'wheel';
+    const w2 = mesh(new THREE.TorusGeometry(0.34, 0.12, 8, 14), MAT(0x1a1c22), -0.75, 0.45, -0.7); w2.rotation.y = Math.PI / 2; w2.name = 'wheel';
+    const w3 = mesh(new THREE.TorusGeometry(0.34, 0.12, 8, 14), MAT(0x1a1c22), 0.75, 0.45, -0.7); w3.rotation.y = Math.PI / 2; w3.name = 'wheel';
+    g.add(w1); g.add(w2); g.add(w3);
+    g.add(mesh(new THREE.BoxGeometry(1.7, 0.7, 2.4), MAT(0x2f9a52, 0.6), 0, 0.95, -0.2));
+    g.add(mesh(new THREE.BoxGeometry(1.7, 0.2, 1.5), MAT(0x1a1c22, 0.7), 0, 2.25, -0.6));
+    for (const x of [-0.8, 0.8]) g.add(mesh(new THREE.BoxGeometry(0.08, 1.2, 0.08), MAT(0x222222), x, 1.65, -1.25));
+    g.add(mesh(new THREE.BoxGeometry(0.08, 1.2, 0.08), MAT(0x222222), -0.8, 1.65, 0.05));
+    g.add(mesh(new THREE.BoxGeometry(0.08, 1.2, 0.08), MAT(0x222222), 0.8, 1.65, 0.05));
+    g.add(mesh(new THREE.BoxGeometry(0.5, 0.3, 0.5), MAT(0xf2c230, 0.6), 0, 1.45, 1.0));
+    g.add(mesh(new THREE.SphereGeometry(0.15, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), 0, 1.2, 1.35, false));
+    return g;
+  }},
+  car: { name: 'عربية', make() {
+    const g = new THREE.Group();
+    for (const [x, z] of [[-0.95, 1.3], [0.95, 1.3], [-0.95, -1.3], [0.95, -1.3]]) { const w = mesh(new THREE.TorusGeometry(0.36, 0.14, 8, 14), MAT(0x1a1c22), x, 0.42, z); w.rotation.y = Math.PI / 2; w.name = 'wheel'; g.add(w); }
+    g.add(mesh(new THREE.BoxGeometry(1.9, 0.7, 4.2), MAT(0xc23a3a, 0.4), 0, 0.85, 0));
+    g.add(mesh(new THREE.BoxGeometry(1.7, 0.65, 2.2), MAT(0xa82e2e, 0.4), 0, 1.5, -0.2));
+    g.add(mesh(new THREE.BoxGeometry(1.72, 0.45, 2.0), new THREE.MeshStandardMaterial({ color: 0x8ad0f0, roughness: 0.2, metalness: 0.5 }), 0, 1.55, -0.2));
+    for (const x of [-0.6, 0.6]) g.add(mesh(new THREE.SphereGeometry(0.18, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), x, 0.95, 2.1, false));
+    return g;
+  }},
+  lantern: { name: 'فانوس رمضان', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.6, 5), MAT(0x3a2a1a), 0, 3.9, 0));
+    const body = mesh(new THREE.CylinderGeometry(0.34, 0.26, 0.9, 6), new THREE.MeshBasicMaterial({ color: 0xffa430 }), 0, 3.15, 0, false);
+    g.add(body);
+    g.add(mesh(new THREE.ConeGeometry(0.42, 0.34, 6), MAT(0xb8862a, 0.4), 0, 3.77, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.12, 6), MAT(0xb8862a, 0.4), 0, 2.64, 0));
+    const l = new THREE.PointLight(0xffa040, 1.8, 11, 1.8); l.position.y = 3.1; l.name = 'firelight'; g.add(l);
+    return g;
+  }},
 };
 function makeFish(color, s, yT) {
   const g = new THREE.Group();
@@ -2660,6 +2694,64 @@ function buildDemoCorniche() {
   seek(0); applySun();
 }
 
+function buildDemoRamadan() {
+  clearAll();
+  S.filmDur = 26; S.title = 'ليلة رمضان في الحارة';
+  S.groundColor = 0x8a7a62; S.skyColor = 0; S.fogFar = 150; S.grade = 4; applyGround();
+  for (let i = 0; i < 7; i++) addProp('lantern', -24 + i * 8, -7, 1.1);
+  for (let i = 0; i < 6; i++) addProp('lantern', -20 + i * 8, 9, 1);
+  addProp('house', -18, -16, 1.6); addProp('house', 2, -18, 1.8); addProp('house', 22, -16, 1.5);
+  addProp('house', -12, 20, 1.5); addProp('house', 14, 21, 1.6);
+  addProp('stall', 12, -3, 1.2); addProp('palm', -28, 4, 1.1);
+  addProp('tuktuk', -30, 3, 1);
+  const kid1 = addCharacter('مريم', { shirt: 0xf26ea0, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x2a1810 }, -6, 4);
+  const kid2 = addCharacter('عمر', { shirt: 0x3ac26a, pants: 0x2c2f45, skin: 0xd9a06a, hair: 0x1a1a1a }, -5, 5.5);
+  const dad = addCharacter('بابا', { shirt: 0xeeeeee, pants: 0x4a4030, skin: 0xc98f5e, hair: 0x222222 }, 10, 4);
+  const mus = addCharacter('المسحراتي', { shirt: 0x8a2a2a, pants: 0x2c2f45, skin: 0xb8804a, hair: 0x333333 }, 24, 3);
+  const tk = S.objects.find(o => o.propType === 'tuktuk');
+  tk.track.actions.push({ type: 'walk', t0: 1, t1: 12, fx: -30, fz: 3, tx: 30, tz: 3 });
+  kid1.track.actions.push({ type: 'walk', t0: 1, t1: 7, fx: -6, fz: 4, tx: 4, tz: 4.5 });
+  kid1.track.actions.push({ type: 'gesture', name: 'jump', time: 7.5, dur: 2 });
+  kid1.track.actions.push({ type: 'gesture', name: 'cheer', time: 14, dur: 3 });
+  kid2.track.actions.push({ type: 'walk', t0: 1.5, t1: 7.5, fx: -5, fz: 5.5, tx: 5, tz: 6 });
+  kid2.track.actions.push({ type: 'gesture', name: 'wave', time: 8, dur: 2.5 });
+  kid2.track.actions.push({ type: 'gesture', name: 'dance', time: 14, dur: 4 });
+  dad.track.actions.push({ type: 'gesture', name: 'wave', time: 4, dur: 2.5 });
+  dad.track.actions.push({ type: 'walk', t0: 9, t1: 13, fx: 10, fz: 4, tx: 7, tz: 4.5 });
+  dad.track.actions.push({ type: 'gesture', name: 'clap', time: 15, dur: 3 });
+  mus.track.actions.push({ type: 'walk', t0: 8, t1: 17, fx: 24, fz: 3, tx: 8, tz: 2 });
+  mus.track.actions.push({ type: 'gesture', name: 'point', time: 17.5, dur: 2.5 });
+  mus.track.actions.push({ type: 'gesture', name: 'cheer', time: 21, dur: 3.5 });
+  [tk, kid1, kid2, dad, mus].forEach(pinWalks);
+  const sh1 = addShot('الحارة', 0, 9); sh1.transition = 'fade';
+  shotKey(sh1, 0, [-18, 2.4, 14], [-8, 2.6, 0], 52, null);
+  shotKey(sh1, 9, [-6, 2, 13], [2, 1.6, 4.5], 44, kid1.id);
+  const sh2 = addShot('المسحراتي', 9, 18); sh2.transition = 'fade';
+  shotKey(sh2, 9, [20, 2, 12], [20, 1.8, 3], 42, mus.id);
+  shotKey(sh2, 18, [12, 2, 10], [10, 1.8, 2.5], 38, mus.id);
+  const sh3 = addShot('الفرحة', 18, 26); sh3.transition = 'fade';
+  applyCamPreset(sh3, 'dollyin', [6, 0, 4.5], null);
+  S.music.mood = 'calm';
+  S.sfx = [
+    { id: genId(), time: 1, type: 'whoosh' }, { id: genId(), time: 7.6, type: 'bell' },
+    { id: genId(), time: 17.6, type: 'magic' }, { id: genId(), time: 21.2, type: 'bell' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'ليلة رمضان في الحارة', style: 'card', color: '#ffb866' },
+    { id: genId(), time: 22.5, dur: 3, text: 'رمضان كريم 🌙', style: 'title', color: '#ffe4a8' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: kid1.id, time: 8, dur: 2.2, text: 'الفانوس نوّر الحارة!' },
+    { id: genId(), objId: mus.id, time: 17.8, dur: 2.4, text: 'اصحى يا نايم… وحّد الدايم!' },
+    { id: genId(), objId: dad.id, time: 15.2, dur: 2.2, text: 'كل سنة وانتو طيبين' },
+  ];
+  S.trails = 'dust';
+  S.weather = 'firefly'; setWeather('firefly');
+  S.sun.tod = 0.75; S.sun.intensity = 0.6; S.ambient = 1.1;
+  addSpot({ pos: [6, 12, 8], color: 0xffcf90, intensity: 60, target: [4, 0, 3] });
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -2738,6 +2830,7 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '🚨 سرقة المتحف', fn: () => { buildDemoHeist(); refreshAfterLoad(); overlay(false); toast('مشهد: سرقة المتحف ▶'); } },
     { t: '🌊 أعماق البحر', fn: () => { buildDemoUnder(); refreshAfterLoad(); overlay(false); toast('مشهد: أعماق البحر ▶'); } },
     { t: '🚀 رحلة إلى القمر', fn: () => { buildDemoSpace(); refreshAfterLoad(); overlay(false); toast('مشهد: رحلة إلى القمر ▶'); } },
+    { t: '🌙 ليلة رمضان في الحارة', fn: () => { buildDemoRamadan(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة رمضان ▶'); } },
     { t: '🌇 غروب الكورنيش', fn: () => { buildDemoCorniche(); refreshAfterLoad(); overlay(false); toast('مشهد: غروب الكورنيش ▶'); } },
     { t: 'إلغاء', fn: () => overlay(false) },
   ]);
