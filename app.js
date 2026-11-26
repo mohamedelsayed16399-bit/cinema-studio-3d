@@ -1345,6 +1345,7 @@ function makeTextSprite(text, style, color) {
   tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
   const sp = new THREE.Sprite(mat);
+  sp.renderOrder = 2;
   return sp;
 }
 function activeTextAt(t) {
@@ -1373,6 +1374,7 @@ function ensureFadeMesh() {
   if (fadeMesh) return fadeMesh;
   fadeMesh = new THREE.Mesh(new THREE.PlaneGeometry(4, 4),
     new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false }));
+  fadeMesh.renderOrder = 1;
   fadeMesh.position.z = 0.5;
   overlayScene.add(fadeMesh);
   return fadeMesh;
