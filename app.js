@@ -1547,6 +1547,7 @@ function renderLightTab() {
     <div class="row"><label>الوقت</label><input type="range" id="sun-tod" min="0" max="1" step="0.01" value="${S.sun.tod}"><span style="font-size:12px;color:var(--accent);font-weight:700">${todName}</span></div>
     <div class="row"><label>قوة الشمس</label><input type="range" id="sun-int" min="0" max="2.5" step="0.05" value="${S.sun.intensity}"></div>
     <div class="row"><label>إضاءة عامة</label><input type="range" id="amb-int" min="0" max="1.5" step="0.05" value="${S.ambient}"></div>
+    <div class="sec"><h4>🎨 أجواء جاهزة بضغطة</h4><div style="display:flex;flex-wrap:wrap;gap:6px">${ATMOS.map(([k, n]) => `<button class="chip-btn" data-atmos="${k}">${n}</button>`).join('')}</div></div>
     <div class="row"><label>الطقس</label><select id="weather-sel">
       <option value="none" ${S.weather === 'none' ? 'selected' : ''}>بدون ☀️</option>
       <option value="rain" ${S.weather === 'rain' ? 'selected' : ''}>مطر 🌧️</option>
@@ -1555,7 +1556,7 @@ function renderLightTab() {
       <option value="bubble" ${S.weather === 'bubble' ? 'selected' : ''}>فقاعات تحت الماء 🫧</option>
       <option value="firefly" ${S.weather === 'firefly' ? 'selected' : ''}>يراعات ليلية ✨</option></select></div>
     <div class="row"><label>لون السماء</label><select id="sky-sel">
-      ${[[0, 'تلقائي ☀️'], [0x04122a, 'فضاء 🌌'], [0x0a5a78, 'تحت الماء 🌊'], [0x1a1a24, 'ليل داكن 🌑']].map(([v, n]) => `<option value="${v}" ${(S.skyColor || 0) === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      ${[[0, 'تلقائي ☀️'], [0x04122a, 'فضاء 🌌'], [0x0a5a78, 'تحت الماء 🌊'], [0x1a1a24, 'ليل داكن 🌑'], [0xf0a060, 'غروب برتقالي 🌇'], [0xcfc4d0, 'ضباب وردي 🌫️'], [0x4a5560, 'غيوم عاصفة ⛈️'], [0xc9d8e6, 'سماء شتوية ❄️'], [0x6ec6ff, 'أزرق صافٍ ☀️']].map(([v, n]) => `<option value="${v}" ${(S.skyColor || 0) === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="row"><label>لون الأرض</label><select id="ground-sel">
       ${[[0xd9c391, 'صحراء 🏜️'], [0x7a9a5a, 'عشب 🌿'], [0x9a9aa2, 'قمر 🌕'], [0xe8ecf2, 'ثلج ❄️'], [0x3a3f4a, 'ليل أسفلت 🌃']].map(([v, n]) => `<option value="${v}" ${S.groundColor === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="row"><label>فلتر لوني</label><select id="grade-sel">
@@ -1574,6 +1575,7 @@ function renderLightTab() {
   document.getElementById('sun-tod').oninput = e => { S.sun.tod = +e.target.value; applySun(); renderPanel(); };
   document.getElementById('sun-int').oninput = e => { S.sun.intensity = +e.target.value; applySun(); };
   document.getElementById('amb-int').oninput = e => { S.ambient = +e.target.value; applySun(); };
+  panelBody.querySelectorAll('[data-atmos]').forEach(b => b.onclick = () => { applyAtmos(b.dataset.atmos); toast('الأجواء: ' + b.textContent); saveLocal(); renderPanel(); });
   document.getElementById('weather-sel').onchange = e => { setWeather(e.target.value); toast('الطقس: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('grade-sel').onchange = e => { S.grade = +e.target.value; toast('الفلتر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('sky-sel').onchange = e => { S.skyColor = +e.target.value; S.fogFar = S.skyColor === 0x0a5a78 ? 55 : 220; applySun(); toast('السماء: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
@@ -1949,6 +1951,21 @@ function updateFade(t) {
 
 // ---------- الطقس ----------
 var weatherPts = null, weatherVel = null;
+export const ATMOS = [
+  ['golden', '🌇 غروب ذهبي', { tod: 0.46, sun: 1.3, amb: 0.7, sky: 0xf0a060, fog: 140, grade: 4, weather: 'none' }],
+  ['dawnfog', '🌫️ فجر ضبابي', { tod: 0.02, sun: 0.8, amb: 0.9, sky: 0xcfc4d0, fog: 45, grade: 0, weather: 'dust' }],
+  ['storm', '⛈️ عاصفة', { tod: 0.3, sun: 0.35, amb: 0.5, sky: 0x4a5560, fog: 70, grade: 2, weather: 'rain' }],
+  ['winter', '❄️ شتاء ثلجي', { tod: 0.28, sun: 0.7, amb: 1.0, sky: 0xc9d8e6, fog: 90, grade: 0, weather: 'snow' }],
+  ['horror', '🌑 ليلة مرعبة', { tod: 0.75, sun: 0.3, amb: 0.45, sky: 0x1a1a24, fog: 38, grade: 1, weather: 'firefly' }],
+  ['noon', '☀️ ظهر مشرق', { tod: 0.25, sun: 1.3, amb: 1.0, sky: 0x6ec6ff, fog: 220, grade: 3, weather: 'none' }],
+];
+export function applyAtmos(key) {
+  const a = ATMOS.find(x => x[0] === key); if (!a) return;
+  const c = a[2];
+  S.sun.tod = c.tod; S.sun.intensity = c.sun; S.ambient = c.amb;
+  S.skyColor = c.sky; S.fogFar = c.fog; S.grade = c.grade;
+  setWeather(c.weather); applySun();
+}
 export function setWeather(type) {
   S.weather = type;
   if (weatherPts) { scene.remove(weatherPts); weatherPts.geometry.dispose(); weatherPts = null; }
