@@ -218,6 +218,32 @@ export const PROP_DEFS = {
     roof.rotation.y = Math.PI / 4; g.add(roof);
     return g;
   }},
+  obelisk: { name: 'مسلة', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(1.1, 6.5, 1.1), MAT(0xc9b184), 0, 3.25, 0));
+    const tip = mesh(new THREE.ConeGeometry(0.78, 1, 4), MAT(0xd9c391), 0, 7, 0);
+    tip.rotation.y = Math.PI / 4; g.add(tip);
+    g.add(mesh(new THREE.BoxGeometry(1.6, 0.5, 1.6), MAT(0xb89a6a), 0, 0.25, 0));
+    return g;
+  }},
+  boat: { name: 'مركب شراعي', make() {
+    const g = new THREE.Group();
+    const hull = mesh(new THREE.CylinderGeometry(0.9, 0.5, 4.6, 8, 1), MAT(0x7a4a26), 0, 0.4, 0);
+    hull.rotation.z = Math.PI / 2; hull.scale.z = 0.55; g.add(hull);
+    g.add(mesh(new THREE.CylinderGeometry(0.07, 0.09, 4.4, 6), MAT(0x5a3a1a), 0, 2.6, 0));
+    const sail = mesh(new THREE.ConeGeometry(1.6, 3.4, 3), new THREE.MeshStandardMaterial({ color: 0xf2ead8, side: THREE.DoubleSide }), 0, 3, 0);
+    sail.scale.z = 0.05; g.add(sail);
+    return g;
+  }},
+  arch: { name: 'أطلال أثرية', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(0.8, 3.4, 0.8), MAT(0xc4ae82), -1.6, 1.7, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.8, 2.6, 0.8), MAT(0xbaa474), 1.6, 1.3, 0));
+    const top = mesh(new THREE.BoxGeometry(4.2, 0.6, 0.9), MAT(0xc4ae82), 0, 3.5, 0);
+    top.rotation.z = 0.06; g.add(top);
+    g.add(mesh(new THREE.DodecahedronGeometry(0.5, 0), MAT(0xb09a6a), 2.6, 0.35, 0.4));
+    return g;
+  }},
 };
 
 // ---------- إدارة العناصر ----------
@@ -358,9 +384,9 @@ export function addShot(name, t0, t1) {
 export function removeShot(id) {
   S.shots = S.shots.filter(s => s.id !== id);
 }
-export function shotKey(sh, t, pos, look, fov) {
+export function shotKey(sh, t, pos, look, fov, lookObj) {
   const ex = sh.keys.find(k => Math.abs(k.t - t) < 0.05);
-  const key = { t, pos: [...pos], look: [...look], fov };
+  const key = { t, pos: [...pos], look: [...look], fov, lookObj: lookObj || null };
   if (ex) Object.assign(ex, key); else sh.keys.push(key);
   sh.keys.sort((a, b) => a.t - b.t);
 }
@@ -554,7 +580,7 @@ export function serialize() {
       colors: o.colors, track: o.track,
     })),
     shots: S.shots, sfx: S.sfx,
-    spots: S.spots,
+    spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
   });
 }
 export function deserialize(json) {
@@ -573,12 +599,16 @@ export function deserialize(json) {
   }
   S.shots = d.shots || [];
   S.sfx = d.sfx || [];
+  S.texts = d.texts || [];
+  S.narr = d.narr || [];
+  setWeather(d.weather || 'none');
   for (const sp of d.spots || []) addSpot(sp);
   applySun(); applyVolume();
 }
 export function clearAll() {
   for (const o of [...S.objects]) removeObject(o.id);
-  S.shots = []; S.sfx = [];
+  S.shots = []; S.sfx = []; S.texts = []; S.narr = [];
+  setWeather('none');
   for (const sp of [...S.spots]) removeSpot(sp.id);
   S.selected = null; S.time = 0;
 }
@@ -637,14 +667,22 @@ function animate(now) {
     const prev = S.time;
     applyTime(S.time + dt);
     checkSfx(prev, S.time);
+    checkNarr(prev, S.time);
     if (S.time >= S.filmDur) { pause(); if (onFilmEnd) onFilmEnd(); }
   }
+  updateWeatherFX(S.time, dt);
   if (S.playing) {
     const sh = activeShot(S.time);
     const cam = sh ? sampleShotCam(sh, S.time) : null;
     if (cam) {
       filmCam.position.set(...cam.pos);
-      filmCam.lookAt(...cam.look);
+      if (cam.lookObj) {
+        const lo = getObj(cam.lookObj);
+        if (lo) {
+          const lp = evalObject(lo, S.time).p;
+          filmCam.lookAt(lp.x, lp.y + 1.4, lp.z);
+        } else filmCam.lookAt(...cam.look);
+      } else filmCam.lookAt(...cam.look);
       filmCam.fov = cam.fov || 50;
       filmCam.updateProjectionMatrix();
       renderer.render(scene, filmCam);
@@ -656,6 +694,12 @@ function animate(now) {
     controls.update();
     renderer.render(scene, camera);
   }
+  updateTextOverlay(S.time);
+  updateFade(S.time);
+  renderer.autoClear = false;
+  renderer.clearDepth();
+  renderer.render(overlayScene, overlayCam);
+  renderer.autoClear = true;
   updateClock();
 }
 function resize() {
@@ -817,6 +861,7 @@ const hex = n => '#' + n.toString(16).padStart(6, '0');
 function renderPanel() {
   if (activeTab === 'scene') renderSceneTab();
   else if (activeTab === 'shots') renderShotsTab();
+  else if (activeTab === 'texts') renderTextsTab();
   else if (activeTab === 'sound') renderSoundTab();
   else renderLightTab();
 }
@@ -932,10 +977,14 @@ function renderShotsTab() {
       <div class="row"><label>من</label><input type="number" id="sh-t0-${sh.id}" value="${sh.t0}" step="0.5" style="width:64px;flex:none">
       <label>إلى</label><input type="number" id="sh-t1-${sh.id}" value="${sh.t1}" step="0.5" style="width:64px;flex:none">
       <label>عدسة</label><input type="number" id="sh-fov-${sh.id}" value="50" step="1" style="width:56px;flex:none"></div>
+      <div class="row"><label>انتقال</label><select data-shot-tr="${sh.id}">
+        <option value="cut" ${sh.transition !== 'fade' ? 'selected' : ''}>قطع مباشر</option>
+        <option value="fade" ${sh.transition === 'fade' ? 'selected' : ''}>تلاشي أسود</option></select>
+      <label>تتبع المحدد</label><input type="checkbox" id="sh-follow-${sh.id}" style="width:18px;height:18px;accent-color:var(--accent)" ${getObj(S.selected) && getObj(S.selected).kind === 'char' ? '' : 'disabled'}></div>
       <button class="chip-btn sel" data-shot-key="${sh.id}" style="width:100%">📸 التقط الكاميرا الحالية @ ${S.time.toFixed(1)}ث</button>
       <div class="obj-list" style="max-height:80px;margin-top:6px">`;
     sh.keys.forEach((k, ki) => {
-      html += `<div class="obj-item"><span class="nm">📸 @${k.t.toFixed(1)}ث عدسة ${k.fov}</span><span class="x" data-del-key="${sh.id}|${ki}">✕</span></div>`;
+      html += `<div class="obj-item"><span class="nm">📸 @${k.t.toFixed(1)}ث عدسة ${k.fov}${k.lookObj ? ' 🎯' : ''}</span><span class="x" data-del-key="${sh.id}|${ki}">✕</span></div>`;
     });
     html += `</div></div>`;
   });
@@ -959,8 +1008,15 @@ function renderShotsTab() {
     const sh = S.shots.find(s => s.id === b.dataset.shotKey);
     const fovEl = document.getElementById('sh-fov-' + sh.id);
     const fov = Math.max(20, Math.min(100, parseFloat(fovEl.value) || 50));
-    shotKey(sh, S.time, camera.position.toArray(), controls.target.toArray(), fov);
-    toast('مفتاح كاميرا محفوظ 📸'); renderPanel(); drawTimeline();
+    const follow = document.getElementById('sh-follow-' + sh.id);
+    const sel = getObj(S.selected);
+    const lookObj = (follow && follow.checked && sel && sel.kind === 'char') ? sel.id : null;
+    shotKey(sh, S.time, camera.position.toArray(), controls.target.toArray(), fov, lookObj);
+    toast('مفتاح كاميرا محفوظ 📸' + (lookObj ? ' (يتبع ' + sel.name + ')' : '')); renderPanel(); drawTimeline();
+  });
+  panelBody.querySelectorAll('[data-shot-tr]').forEach(el => el.onchange = () => {
+    const sh = S.shots.find(s => s.id === el.dataset.shotTr);
+    sh.transition = el.value; toast('الانتقال: ' + (el.value === 'fade' ? 'تلاشي 🌑' : 'قطع ✂️')); saveLocal();
   });
   panelBody.querySelectorAll('[data-del-shot]').forEach(el => el.onclick = () => {
     removeShot(el.dataset.delShot); renderPanel(); drawTimeline();
@@ -993,8 +1049,20 @@ function renderSoundTab() {
   S.sfx.forEach((s, i) => {
     html += `<div class="obj-item"><span class="nm">${SFX_DEFS[s.type]?.name || s.type} @${s.time.toFixed(1)}ث</span><span class="x" data-del-sfx="${i}">✕</span></div>`;
   });
+  html += `</div></div>
+  <div class="sec"><h4>🎙️ تعليق صوتي بصوتك</h4>
+    <p style="font-size:11.5px;color:var(--muted);margin:0 0 8px">حرّك المؤشر للحظة المناسبة ثم سجّل صوتك — سيُسمع داخل الفيلم المصدَّر.</p>
+    <button class="chip-btn sel" id="narr-rec" style="width:100%">🎙️ سجّل تعليقًا @ ${S.time.toFixed(1)}ث</button>
+    <div class="obj-list" style="margin-top:6px">`;
+  S.narr.forEach((n, i) => {
+    html += `<div class="obj-item"><span class="nm">🎙️ تعليق @${n.time.toFixed(1)}ث</span><span class="x" data-del-narr="${i}">✕</span></div>`;
+  });
   html += `</div></div>`;
   panelBody.innerHTML = html;
+  document.getElementById('narr-rec').onclick = e => toggleNarration(e.target);
+  panelBody.querySelectorAll('[data-del-narr]').forEach(el => el.onclick = () => {
+    S.narr.splice(+el.dataset.delNarr, 1); renderPanel(); drawTimeline();
+  });
   document.getElementById('mus-mood').onchange = e => { S.music.mood = e.target.value; saveLocal(); };
   document.getElementById('mus-vol').oninput = e => { S.music.volume = +e.target.value; applyVolume(); };
   document.getElementById('mus-on').onchange = e => { S.music.on = e.target.checked; };
@@ -1017,6 +1085,11 @@ function renderLightTab() {
     <div class="row"><label>الوقت</label><input type="range" id="sun-tod" min="0" max="1" step="0.01" value="${S.sun.tod}"><span style="font-size:12px;color:var(--accent);font-weight:700">${todName}</span></div>
     <div class="row"><label>قوة الشمس</label><input type="range" id="sun-int" min="0" max="2.5" step="0.05" value="${S.sun.intensity}"></div>
     <div class="row"><label>إضاءة عامة</label><input type="range" id="amb-int" min="0" max="1.5" step="0.05" value="${S.ambient}"></div>
+    <div class="row"><label>الطقس</label><select id="weather-sel">
+      <option value="none" ${S.weather === 'none' ? 'selected' : ''}>بدون ☀️</option>
+      <option value="rain" ${S.weather === 'rain' ? 'selected' : ''}>مطر 🌧️</option>
+      <option value="snow" ${S.weather === 'snow' ? 'selected' : ''}>ثلج ❄️</option>
+      <option value="dust" ${S.weather === 'dust' ? 'selected' : ''}>عاصفة رملية 🌪️</option></select></div>
   </div>
   <div class="sec"><h4>🔦 كشافات تصوير</h4>
     <button class="chip-btn sel" id="spot-add" style="width:100%">＋ كشاف جديد</button>
@@ -1031,6 +1104,7 @@ function renderLightTab() {
   document.getElementById('sun-tod').oninput = e => { S.sun.tod = +e.target.value; applySun(); renderPanel(); };
   document.getElementById('sun-int').oninput = e => { S.sun.intensity = +e.target.value; applySun(); };
   document.getElementById('amb-int').oninput = e => { S.ambient = +e.target.value; applySun(); };
+  document.getElementById('weather-sel').onchange = e => { setWeather(e.target.value); toast('الطقس: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('spot-add').onclick = () => {
     addSpot({ pos: [Math.random() * 10 - 5, 7, Math.random() * 8 + 2], color: 0xfff2cc, intensity: 60 });
     renderPanel();
@@ -1081,9 +1155,16 @@ function buildDemo() {
   const sh3 = addShot('حول النار', 16, 24);
   shotKey(sh3, 16, [5, 2.2, 7], [0, 1.2, 2], 38);
   shotKey(sh3, 24, [-5, 2.2, 7], [0, 1.2, 2], 38);
-  const sh4 = addShot('خاتمة الغروب', 24, 30);
+  const sh4 = addShot('خاتمة الغروب', 24, 30); sh4.transition = 'fade';
   shotKey(sh4, 24, [0, 3, 14], [0, 3, -10], 48);
   shotKey(sh4, 30, [0, 16, 26], [0, 2, -14], 55);
+  // نصوص على الشاشة
+  S.texts = [
+    { id: genId(), time: 0.3, dur: 2.8, text: 'لقاء عند الأهرام', style: 'card', color: '#f5b942' },
+    { id: genId(), time: 9.2, dur: 2.6, text: 'سارة: أهلًا يا عمر!', style: 'sub', color: '#ffffff' },
+    { id: genId(), time: 16.8, dur: 2.8, text: 'عمر: انظر إلى الأهرامات!', style: 'sub', color: '#ffffff' },
+    { id: genId(), time: 26.5, dur: 2.8, text: 'النهاية', style: 'title', color: '#f5b942' },
+  ];
   // صوت
   S.music.mood = 'oriental';
   S.sfx = [
@@ -1221,3 +1302,359 @@ addEventListener('beforeunload', () => { try { localStorage.setItem(LS_KEY, seri
   requestAnimationFrame(animate);
   setTimeout(() => document.getElementById('viewport-hint').style.opacity = 0, 6000);
 })();
+
+// ================== الجولة ٢ ==================
+// ---------- نصوص على الشاشة (تُسجَّل داخل الفيديو) ----------
+S.texts = S.texts || [];   // {id,time,dur,text,style:'title'|'sub'|'card',color}
+S.weather = S.weather || 'none';
+S.narr = S.narr || [];     // {id,time,dataURL}
+
+const overlayScene = new THREE.Scene();
+const overlayCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+overlayCam.position.z = 1;
+let textSprite = null, textKey = '', fadeMesh = null;
+
+function makeTextSprite(text, style, color) {
+  const c = document.createElement('canvas');
+  c.width = 2048; c.height = 512;
+  const g = c.getContext('2d');
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.direction = 'rtl';
+  if (style === 'card') {
+    g.fillStyle = '#0d0f1a';
+    g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = color || '#f5b942';
+    g.font = '900 150px Cairo, sans-serif';
+    g.shadowColor = '#000'; g.shadowBlur = 30;
+    g.fillText(text, c.width / 2, c.height / 2, c.width - 200);
+  } else if (style === 'title') {
+    g.fillStyle = color || '#ffffff';
+    g.font = '900 170px Cairo, sans-serif';
+    g.shadowColor = '#000'; g.shadowBlur = 26; g.shadowOffsetY = 6;
+    g.fillText(text, c.width / 2, c.height / 2, c.width - 160);
+  } else {
+    g.font = '700 96px Cairo, sans-serif';
+    const w = Math.min(c.width - 120, g.measureText(text).width + 120);
+    g.fillStyle = '#000000b0';
+    g.beginPath(); g.roundRect((c.width - w) / 2, c.height / 2 - 90, w, 180, 40); g.fill();
+    g.fillStyle = color || '#ffffff';
+    g.shadowColor = '#000'; g.shadowBlur = 12;
+    g.fillText(text, c.width / 2, c.height / 2, w - 60);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sp = new THREE.Sprite(mat);
+  return sp;
+}
+function activeTextAt(t) {
+  return S.texts.find(x => t >= x.time && t <= x.time + x.dur) || null;
+}
+function updateTextOverlay(t) {
+  const at = S.playing ? activeTextAt(t) : activeTextAt(t) || (S.texts.length ? S.texts.find(x => Math.abs(x.time - t) < 0.4) : null);
+  const key = at ? at.id + '|' + at.text + '|' + at.style + '|' + at.color + (S.playing ? '' : '|preview') : '';
+  if (key === textKey) return;
+  textKey = key;
+  if (textSprite) { overlayScene.remove(textSprite); textSprite.material.map.dispose(); textSprite.material.dispose(); textSprite = null; }
+  if (at) {
+    textSprite = makeTextSprite(at.text, at.style, at.color);
+    if (at.style === 'card') { textSprite.scale.set(2, 1, 1); textSprite.position.set(0, 0, 0); }
+    else if (at.style === 'title') { textSprite.scale.set(1.7, 0.425, 1); textSprite.position.set(0, 0.45, 0); }
+    else { textSprite.scale.set(1.6, 0.4, 1); textSprite.position.set(0, -0.62, 0); }
+    overlayScene.add(textSprite);
+  }
+}
+// انتقال تلاشي
+function ensureFadeMesh() {
+  if (fadeMesh) return fadeMesh;
+  fadeMesh = new THREE.Mesh(new THREE.PlaneGeometry(4, 4),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false }));
+  fadeMesh.position.z = 0.5;
+  overlayScene.add(fadeMesh);
+  return fadeMesh;
+}
+function updateFade(t) {
+  const fm = ensureFadeMesh();
+  let op = 0;
+  const sh = activeShot(t);
+  if (sh && sh.transition === 'fade') {
+    const FADE = 0.8;
+    const inK = (t - sh.t0) / FADE, outK = (sh.t1 - t) / FADE;
+    if (inK < 1) op = Math.max(op, 1 - inK);
+    if (outK < 1 && outK > 0) op = Math.max(op, 1 - outK);
+  }
+  const card = activeTextAt(t);
+  if (card && card.style === 'card') op = 1;
+  fm.material.opacity = Math.max(0, Math.min(1, op));
+}
+
+// ---------- الطقس ----------
+let weatherPts = null, weatherVel = null;
+export function setWeather(type) {
+  S.weather = type;
+  if (weatherPts) { scene.remove(weatherPts); weatherPts.geometry.dispose(); weatherPts = null; }
+  if (type === 'none') return;
+  const N = type === 'dust' ? 500 : 1600;
+  const pos = new Float32Array(N * 3);
+  weatherVel = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    pos[i * 3] = Math.random() * 120 - 60;
+    pos[i * 3 + 1] = Math.random() * 30;
+    pos[i * 3 + 2] = Math.random() * 120 - 60;
+    weatherVel[i] = type === 'rain' ? 14 + Math.random() * 8 : type === 'snow' ? 1.5 + Math.random() * 2 : 0.6 + Math.random();
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({
+    color: type === 'rain' ? 0x9db8d9 : type === 'snow' ? 0xffffff : 0xd8c090,
+    size: type === 'rain' ? 0.12 : type === 'snow' ? 0.25 : 0.3,
+    transparent: true, opacity: type === 'dust' ? 0.35 : 0.75,
+  });
+  weatherPts = new THREE.Points(geo, mat);
+  weatherPts.frustumCulled = false;
+  scene.add(weatherPts);
+}
+function updateWeatherFX(t, dt) {
+  if (!weatherPts) return;
+  const pos = weatherPts.geometry.attributes.position;
+  const fall = S.weather === 'dust' ? 0.4 : 1;
+  for (let i = 0; i < weatherVel.length; i++) {
+    let y = pos.getY(i) - weatherVel[i] * dt * fall;
+    if (y < 0) y = 28 + Math.random() * 3;
+    pos.setY(i, y);
+    if (S.weather === 'snow') pos.setX(i, pos.getX(i) + Math.sin(t * 2 + i) * dt * 0.8);
+    if (S.weather === 'dust') pos.setX(i, pos.getX(i) + dt * 2);
+    if (Math.abs(pos.getX(i)) > 62) pos.setX(i, -pos.getX(i) * 0.95);
+  }
+  pos.needsUpdate = true;
+}
+
+// ---------- تتبع الكاميرا لممثل ----------
+const _origSampleShotCam = sampleShotCam;
+
+// ---------- تراجع / إعادة ----------
+const undoStack = [], redoStack = [];
+let lastSer = null;
+function refreshAfterLoad() {
+  document.getElementById('film-dur').value = S.filmDur;
+  document.getElementById('film-dur-lbl').textContent = S.filmDur + ' ث';
+  setWeather(S.weather || 'none');
+  renderPanel(); drawTimeline(); seek(Math.min(S.time, S.filmDur));
+}
+export function undo() {
+  if (!undoStack.length) return toast('لا شيء للتراجع عنه');
+  redoStack.push(lastSer);
+  lastSer = undoStack.pop();
+  deserialize(lastSer);
+  refreshAfterLoad();
+}
+export function redo() {
+  if (!redoStack.length) return toast('لا شيء لإعادته');
+  undoStack.push(lastSer);
+  lastSer = redoStack.pop();
+  deserialize(lastSer);
+  refreshAfterLoad();
+}
+addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
+});
+setInterval(() => {
+  const cur = serialize();
+  if (lastSer === null) { lastSer = cur; return; }
+  if (cur !== lastSer) {
+    undoStack.push(lastSer);
+    if (undoStack.length > 50) undoStack.shift();
+    redoStack.length = 0;
+    lastSer = cur;
+  }
+}, 1500);
+
+// ---------- تعليق صوتي ----------
+let narrRec = null, narrChunks = [], narrStream = null;
+const narrBuffers = new Map(); const narrFired = new Set();
+export async function toggleNarration(btn) {
+  if (narrRec && narrRec.state === 'recording') {
+    narrRec.stop();
+    return;
+  }
+  try {
+    narrStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) { toast('الميكروفون غير متاح ⚠️'); return; }
+  narrChunks = [];
+  narrRec = new MediaRecorder(narrStream);
+  const startTime = S.time;
+  narrRec.ondataavailable = e => { if (e.data.size) narrChunks.push(e.data); };
+  narrRec.onstop = () => {
+    narrStream.getTracks().forEach(tr => tr.stop());
+    const blob = new Blob(narrChunks, { type: narrRec.mimeType || 'audio/webm' });
+    const rd = new FileReader();
+    rd.onload = () => {
+      S.narr.push({ id: genId(), time: startTime, dataURL: rd.result });
+      narrBuffers.delete(startTime);
+      toast('تعليق صوتي عند ' + startTime.toFixed(1) + ' ث 🎙️');
+      if (activeTab === 'sound') renderPanel();
+      drawTimeline();
+    };
+    rd.readAsDataURL(blob);
+    if (btn) { btn.textContent = '🎙️ سجّل تعليقًا'; btn.classList.remove('danger'); }
+  };
+  narrRec.start();
+  if (btn) { btn.textContent = '⏹ إيقاف التسجيل'; btn.classList.add('danger'); }
+  toast('جارٍ تسجيل التعليق… 🎙️');
+}
+async function narrBuffer(n) {
+  if (narrBuffers.has(n.id)) return narrBuffers.get(n.id);
+  ensureAudio();
+  const res = await fetch(n.dataURL);
+  const buf = await audio.ctx.decodeAudioData(await res.arrayBuffer());
+  narrBuffers.set(n.id, buf);
+  return buf;
+}
+export async function checkNarr(prevT, t) {
+  for (const n of S.narr) {
+    if (n.time > prevT && n.time <= t && !narrFired.has(n.id)) {
+      narrFired.add(n.id);
+      try {
+        const buf = await narrBuffer(n);
+        const src = audio.ctx.createBufferSource();
+        src.buffer = buf; src.connect(audio.master); src.start();
+      } catch (e) {}
+    }
+  }
+  if (t < prevT) narrFired.clear();
+}
+
+// ---- تبويب النصوص ----
+function renderTextsTab() {
+  let html = `<div class="sec"><h4>📝 نص على الشاشة</h4>
+    <p style="font-size:11.5px;color:var(--muted);margin:0 0 8px">يظهر النص داخل الفيديو المصدَّر (عنوان، ترجمة سفلية، أو بطاقة سوداء).</p>
+    <div class="row"><label>النص</label><input type="text" id="tx-text" placeholder="اكتب العنوان أو الترجمة…"></div>
+    <div class="row"><label>النوع</label><select id="tx-style">
+      <option value="title">عنوان علوي كبير</option>
+      <option value="sub">ترجمة سفلية</option>
+      <option value="card">بطاقة سوداء كاملة</option></select></div>
+    <div class="row"><label>اللون</label><input type="color" id="tx-color" value="#ffffff">
+    <label>المدة</label><input type="number" id="tx-dur" value="3" min="0.5" max="20" step="0.5" style="width:64px;flex:none"></div>
+    <button class="chip-btn sel" id="tx-add" style="width:100%">＋ أضف عند ${S.time.toFixed(1)} ث</button>
+  </div>
+  <div class="sec"><h4>📋 النصوص المضافة</h4><div class="obj-list">`;
+  S.texts.forEach((t, i) => {
+    const styleName = t.style === 'title' ? 'عنوان' : t.style === 'card' ? 'بطاقة' : 'ترجمة';
+    html += `<div class="obj-item"><span class="nm">📝 [${styleName}] ${esc(t.text)} @${t.time.toFixed(1)}ث</span><span class="x" data-del-tx="${i}">✕</span></div>`;
+  });
+  html += `</div></div>`;
+  panelBody.innerHTML = html;
+  document.getElementById('tx-add').onclick = () => {
+    const text = document.getElementById('tx-text').value.trim();
+    if (!text) return toast('اكتب النص أولًا');
+    S.texts.push({
+      id: genId(), time: S.time, text,
+      style: document.getElementById('tx-style').value,
+      color: document.getElementById('tx-color').value,
+      dur: Math.max(0.5, parseFloat(document.getElementById('tx-dur').value) || 3),
+    });
+    toast('نص مضاف @ ' + S.time.toFixed(1) + ' ث 📝');
+    renderPanel(); drawTimeline(); saveLocal();
+  };
+  panelBody.querySelectorAll('[data-del-tx]').forEach(el => el.onclick = () => {
+    S.texts.splice(+el.dataset.delTx, 1); renderPanel(); drawTimeline();
+  });
+}
+
+// ---------- قوالب مشاهد إضافية ----------
+function buildDemoChase() {
+  clearAll();
+  S.filmDur = 25; S.title = 'مطاردة في الصحراء';
+  addProp('pyramid', -25, -35, 2.5);
+  addProp('arch', 5, -15); addProp('arch', -12, -5);
+  addProp('obelisk', 14, -12); addProp('obelisk', -4, -22);
+  addProp('rock', 6, 4); addProp('rock', -9, 9); addProp('palm', 18, 2); addProp('tent', -16, 14);
+  const runner = addCharacter('لص', { shirt: 0x2c2f45, pants: 0x1a1c28, skin: 0xc98f5e }, -20, 12);
+  const guard = addCharacter('حارس', { shirt: 0x8a2020, pants: 0x3a2a1a }, -26, 16);
+  runner.track.actions.push({ type: 'walk', t0: 0.5, t1: 6, fx: -20, fz: 12, tx: 0, tz: 4 });
+  runner.track.actions.push({ type: 'walk', t0: 6, t1: 12, fx: 0, fz: 4, tx: 14, tz: -6 });
+  runner.track.actions.push({ type: 'gesture', name: 'jump', time: 6.2, dur: 1.2 });
+  runner.track.actions.push({ type: 'walk', t0: 12, t1: 19, fx: 14, fz: -6, tx: 22, tz: 8 });
+  guard.track.actions.push({ type: 'walk', t0: 1.5, t1: 8, fx: -26, fz: 16, tx: -4, fz2: 0, tx2: 0, tz: 7 });
+  guard.track.actions.push({ type: 'walk', t0: 8, t1: 14, fx: -4, fz: 7, tx: 11, tz: -3 });
+  guard.track.actions.push({ type: 'gesture', name: 'point', time: 14.5, dur: 2 });
+  guard.track.actions.push({ type: 'walk', t0: 15, t1: 22, fx: 11, fz: -3, tx: 20, tz: 6 });
+  const sh1 = addShot('انطلاقة', 0, 7); sh1.transition = 'fade';
+  shotKey(sh1, 0, [-24, 5, 24], [-18, 1.5, 10], 45, runner.id);
+  shotKey(sh1, 7, [2, 4, 14], [0, 1.5, 4], 42, runner.id);
+  const sh2 = addShot('بين الأطلال', 7, 15); sh2.transition = 'fade';
+  shotKey(sh2, 7, [8, 2.5, 2], [10, 1.5, -5], 38, runner.id);
+  shotKey(sh2, 15, [16, 3, 6], [16, 1.5, 0], 40, runner.id);
+  const sh3 = addShot('الخاتمة', 15, 25); sh3.transition = 'fade';
+  shotKey(sh3, 15, [24, 3.5, 14], [21, 1.5, 7], 42, runner.id);
+  shotKey(sh3, 25, [10, 9, 22], [18, 2, 2], 52, null);
+  S.music.mood = 'tension';
+  S.sfx = [
+    { id: genId(), time: 0.8, type: 'steps' }, { id: genId(), time: 6, type: 'whoosh' },
+    { id: genId(), time: 12.5, type: 'steps' }, { id: genId(), time: 15, type: 'boom' },
+    { id: genId(), time: 21, type: 'wind' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.3, dur: 2.6, text: 'مطاردة في الصحراء', style: 'card', color: '#f5b942' },
+    { id: genId(), time: 13.8, dur: 3, text: 'الحارس: قِف مكانك!', style: 'sub', color: '#ffffff' },
+    { id: genId(), time: 22, dur: 2.6, text: 'يتبع…', style: 'title', color: '#f5b942' },
+  ];
+  S.weather = 'dust'; setWeather('dust');
+  S.sun.tod = 0.42; S.sun.intensity = 1.35;
+  addSpot({ pos: [4, 6, 8], color: 0xffc890, intensity: 70, target: [2, 1, 2] });
+  seek(0); applySun();
+}
+function buildDemoNile() {
+  clearAll();
+  S.filmDur = 25; S.title = 'ليلة على النيل';
+  addProp('boat', 0, -6, 1.3);
+  addProp('palm', -14, -2); addProp('palm', -18, -8); addProp('palm', 16, -4); addProp('palm', 20, -10);
+  addProp('fire', -4, 6); addProp('tent', -9, 9); addProp('well', 8, 8);
+  addProp('house', 14, 12); addProp('house', -16, 14);
+  const girl = addCharacter('ليلى', { shirt: 0x7a4ad6, pants: 0x2c2f45, hair: 0x120e0a }, -5, 3);
+  const boy = addCharacter('كريم', { shirt: 0x2a8a6a, pants: 0x2c2f45 }, 5, 3);
+  girl.track.actions.push({ type: 'walk', t0: 2, t1: 7, fx: -5, fz: 3, tx: -1.5, tz: 4.5 });
+  girl.track.actions.push({ type: 'gesture', name: 'wave', time: 8, dur: 2.5 });
+  girl.track.actions.push({ type: 'gesture', name: 'sit', time: 15, dur: 3 });
+  boy.track.actions.push({ type: 'walk', t0: 2.5, t1: 7.5, fx: 5, fz: 3, tx: 1.5, tz: 4.5 });
+  boy.track.actions.push({ type: 'gesture', name: 'bow', time: 8.5, dur: 2 });
+  boy.track.actions.push({ type: 'gesture', name: 'clap', time: 11.5, dur: 2.5 });
+  boy.track.actions.push({ type: 'gesture', name: 'sit', time: 15.5, dur: 3 });
+  const sh1 = addShot('ليلة النيل', 0, 9); sh1.transition = 'fade';
+  shotKey(sh1, 0, [0, 8, 22], [0, 2, -4], 55);
+  shotKey(sh1, 9, [-6, 4, 12], [0, 1.5, 3], 45);
+  const sh2 = addShot('اللقاء', 9, 17); sh2.transition = 'fade';
+  shotKey(sh2, 9, [4, 2.5, 9], [0, 1.4, 4.5], 40);
+  shotKey(sh2, 17, [-4, 2.5, 9], [0, 1.4, 4.5], 40);
+  const sh3 = addShot('القمر والنار', 17, 25); sh3.transition = 'fade';
+  shotKey(sh3, 17, [2, 1.8, 8.5], [0, 1, 5], 36);
+  shotKey(sh3, 25, [0, 12, 20], [0, 2, -2], 50);
+  S.music.mood = 'calm';
+  S.sfx = [
+    { id: genId(), time: 1, type: 'chirp' }, { id: genId(), time: 8.2, type: 'magic' },
+    { id: genId(), time: 12, type: 'crowd' }, { id: genId(), time: 18, type: 'bell' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'ليلة على النيل', style: 'card', color: '#4ecdc4' },
+    { id: genId(), time: 9.5, dur: 3, text: 'ليلى: أهلاً يا كريم!', style: 'sub', color: '#ffffff' },
+    { id: genId(), time: 21.5, dur: 2.8, text: 'النهاية', style: 'title', color: '#4ecdc4' },
+  ];
+  S.sun.tod = 0.82; S.sun.intensity = 0.9; S.ambient = 0.5;
+  addSpot({ pos: [0, 5, 8], color: 0xffb060, intensity: 90, target: [0, 1, 4] });
+  seek(0); applySun();
+}
+
+// ---------- اختيار القالب ----------
+document.getElementById('btn-demo').onclick = () => {
+  overlay(true, '', 'اختر مشهدًا جاهزًا للانطلاق منه — كل قالب قصة كاملة بلقطات وموسيقى ونصوص:', [
+    { t: '🏜️ لقاء عند الأهرام', fn: () => { buildDemo(); refreshAfterLoad(); overlay(false); toast('مشهد: لقاء عند الأهرام ▶'); } },
+    { t: '🗡️ مطاردة في الصحراء', fn: () => { buildDemoChase(); refreshAfterLoad(); overlay(false); toast('مشهد: مطاردة في الصحراء ▶'); } },
+    { t: '🌙 ليلة على النيل', fn: () => { buildDemoNile(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة على النيل ▶'); } },
+    { t: 'إلغاء', fn: () => overlay(false) },
+  ]);
+};
+
+// أزرار التراجع/الإعادة في الشريط العلوي
+document.getElementById('btn-undo').onclick = () => undo();
+document.getElementById('btn-redo').onclick = () => redo();
