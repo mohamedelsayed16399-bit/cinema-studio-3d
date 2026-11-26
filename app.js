@@ -1079,7 +1079,8 @@ function renderSceneTab() {
       <div class="row"><label>مكان Z</label><input type="range" id="sel-z" min="-60" max="60" step="0.5" value="${sel.group.position.z}"><span id="sel-z-v" style="font-size:11px;width:30px">${sel.group.position.z.toFixed(1)}</span></div>
       <div class="row"><label>اتجاه</label><input type="range" id="sel-ry" min="-3.14" max="3.14" step="0.05" value="${(sel.track.keys[0]?.ry || 0)}"></div>`;
     if (sel.kind === 'prop') html += `<div class="row"><label>حجم</label><input type="range" id="sel-sc" min="0.3" max="4" step="0.1" value="${sel.scale || 1}"></div>`;
-    html += `<button class="chip-btn sel" id="sel-key" style="width:100%">📍 ثبّت مفتاح حركة عند ${S.time.toFixed(1)} ث</button>`;
+    html += `<button class="chip-btn sel" id="sel-key" style="width:100%">📍 ثبّت مفتاح حركة عند ${S.time.toFixed(1)} ث</button>
+      <button class="chip-btn" id="sel-dup" style="width:100%;margin-top:5px">🧬 انسخ العنصر (بلا حركات)</button>`;
     if (sel.kind === 'char') {
       html += `<div class="row" style="margin-top:6px"><label>يمشي إلى</label>
         <input type="number" id="walk-x" placeholder="X" style="width:56px;flex:none">
@@ -1150,6 +1151,13 @@ function renderSceneTab() {
     document.getElementById('sel-key').onclick = () => {
       addKey(sel, S.time, sel.group.position.x, sel.group.position.z, sel.group.rotation.y);
       toast('مفتاح حركة عند ' + S.time.toFixed(1) + ' ث 📍'); drawTimeline();
+    };
+    document.getElementById('sel-dup').onclick = () => {
+      const nx = sel.group.position.x + 2.5, nz = sel.group.position.z + 2.5;
+      let o;
+      if (sel.kind === 'char') o = addCharacter(sel.name + ' (نسخة)', sel.colors || {}, nx, nz);
+      else o = addProp(sel.propType, nx, nz, sel.scale || 1);
+      if (o) { select(o.id); toast('اتعملت نسخة 🧬'); }
     };
     const wa = document.getElementById('walk-add');
     if (wa) wa.onclick = () => {
@@ -2189,4 +2197,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-              }
+}
