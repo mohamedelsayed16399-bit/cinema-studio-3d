@@ -89,8 +89,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 /* ===== responsive ===== */
 @media (max-width:760px){
   #panel{position:absolute;top:0;bottom:0;inset-inline-end:0;width:min(84vw,330px);box-shadow:-6px 0 24px #0008;}
+  #topbar{flex-wrap:nowrap;overflow-x:auto;padding:6px 8px;gap:6px;scrollbar-width:thin;}
+  #topbar .logo{font-size:14px;flex:none;}
   #topbar .logo small{display:none;}
-  .tb-btn{padding:6px 9px;font-size:12px;}
+  .tb-btn{padding:6px 9px;font-size:12px;flex:none;white-space:nowrap;}
   #tl-canvas-holder{height:78px;}
 }
 </style>
@@ -152,6 +154,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
 </script>
-<script type="module" src="app.js?v=7"></script>
+<script type="module" src="app.js?v=8"></script>
 </body>
 </html>
