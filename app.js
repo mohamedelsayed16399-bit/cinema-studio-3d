@@ -311,31 +311,35 @@ export function sampleTrack(o, t) {
 // تقييم عنصر في لحظة: الكي فريم + أفعال (مشي/إيماءة)
 export function evalObject(o, t) {
   let p = { ...sampleTrack(o, t) };
-  let walking = false, gesture = null;
+  let walking = false, gesture = null, speed = 0;
   for (const a of o.track.actions) {
     if (a.type === 'walk' && t >= a.t0 && t <= a.t1) {
       const k = smooth((t - a.t0) / Math.max(0.001, a.t1 - a.t0));
       p = { x: lerp(a.fx, a.tx, k), y: 0, z: lerp(a.fz, a.tz, k), ry: Math.atan2(a.tx - a.fx, a.tz - a.fz) };
       walking = true;
+      speed = Math.hypot(a.tx - a.fx, a.tz - a.fz) / Math.max(0.001, a.t1 - a.t0);
     } else if (a.type === 'gesture' && t >= a.time && t <= a.time + a.dur) {
       gesture = { name: a.name, k: (t - a.time) / a.dur };
     }
   }
-  return { p, walking, gesture };
+  return { p, walking, gesture, speed };
 }
 
 function poseCharacter(o, t) {
-  const { p, walking, gesture } = evalObject(o, t);
+  const { p, walking, gesture, speed } = evalObject(o, t);
   const g = o.group, parts = g.userData.parts;
   g.position.set(p.x, p.y, p.z);
   g.rotation.y = p.ry || 0;
-  const ph = t * 7;
+  const running = walking && speed > 2.2;
+  const ph = t * (running ? 11 : 7);
   if (walking) {
-    parts.legL.rotation.x = Math.sin(ph) * 0.7;
-    parts.legR.rotation.x = -Math.sin(ph) * 0.7;
-    parts.armL.rotation.x = -Math.sin(ph) * 0.5;
-    parts.armR.rotation.x = Math.sin(ph) * 0.5;
-    parts.body.position.y = 1.25 + Math.abs(Math.sin(ph)) * 0.05;
+    const amp = running ? 1.0 : 0.7;
+    parts.legL.rotation.x = Math.sin(ph) * amp;
+    parts.legR.rotation.x = -Math.sin(ph) * amp;
+    parts.armL.rotation.x = -Math.sin(ph) * (amp - 0.15);
+    parts.armR.rotation.x = Math.sin(ph) * (amp - 0.15);
+    parts.body.rotation.x = running ? 0.22 : 0;
+    parts.body.position.y = 1.25 + Math.abs(Math.sin(ph)) * (running ? 0.09 : 0.05);
   } else {
     parts.legL.rotation.x *= 0.8; parts.legR.rotation.x *= 0.8;
     parts.armL.rotation.x *= 0.8;
@@ -347,6 +351,14 @@ function poseCharacter(o, t) {
     if (gesture.name === 'wave') {
       parts.armR.rotation.x = 0; parts.armR.rotation.z = Math.PI * 0.85;
       parts.armR.rotation.y = Math.sin(k * 18) * 0.5 * env;
+    } else if (gesture.name === 'run') {
+      const rp = k * 22;
+      parts.legL.rotation.x = Math.sin(rp) * 1.05;
+      parts.legR.rotation.x = -Math.sin(rp) * 1.05;
+      parts.armL.rotation.x = -Math.sin(rp) * 0.9;
+      parts.armR.rotation.x = Math.sin(rp) * 0.9;
+      parts.body.rotation.x = 0.25 * env;
+      parts.body.position.y = 1.25 + Math.abs(Math.sin(rp)) * 0.09;
     } else if (gesture.name === 'jump') {
       g.position.y = Math.sin(k * Math.PI) * 1.2;
       parts.armL.rotation.z = -env * 2.4; parts.armR.rotation.z = env * 2.4;
@@ -362,16 +374,35 @@ function poseCharacter(o, t) {
       parts.armL.rotation.x = -Math.PI / 2.4; parts.armR.rotation.x = -Math.PI / 2.4;
       parts.armL.rotation.y = Math.sin(k * 20) * 0.4 * env;
       parts.armR.rotation.y = -Math.sin(k * 20) * 0.4 * env;
+    } else if (gesture.name === 'dance') {
+      parts.armL.rotation.z = -Math.sin(k * 10) * 1.6 * env - 0.5;
+      parts.armR.rotation.z = Math.sin(k * 10) * 1.6 * env + 0.5;
+      g.position.y += Math.abs(Math.sin(k * 12)) * 0.25 * env;
+      g.rotation.y += Math.sin(k * 6) * 0.5 * env;
+      parts.legL.rotation.x = Math.sin(k * 12) * 0.4 * env;
+      parts.legR.rotation.x = -Math.sin(k * 12) * 0.4 * env;
+    } else if (gesture.name === 'punch') {
+      parts.armR.rotation.x = -Math.PI / 2 * Math.sin(k * Math.PI * 3) * env;
+      parts.body.rotation.y = Math.sin(k * Math.PI * 3) * 0.3 * env;
+    } else if (gesture.name === 'cheer') {
+      parts.armL.rotation.z = -2.6 * env; parts.armR.rotation.z = 2.6 * env;
+      g.position.y += Math.abs(Math.sin(k * 8)) * 0.35 * env;
+    } else if (gesture.name === 'cry') {
+      parts.head.rotation.x = 0.4 * env;
+      parts.armL.rotation.x = -2.6 * env; parts.armR.rotation.x = -2.6 * env;
+      parts.body.position.y = 1.25 - 0.1 * env;
     }
   } else {
     parts.armR.rotation.z *= 0.8; parts.armL.rotation.z *= 0.8;
     parts.body.rotation.x *= 0.7; parts.head.rotation.x *= 0.7;
+    parts.body.rotation.y *= 0.7; parts.armR.rotation.y *= 0.8; parts.armL.rotation.y *= 0.8;
   }
 }
 
 export const GESTURES = [
-  ['wave', '👋 يلوّح'], ['jump', '🦘 يقفز'], ['sit', '🪑 يجلس'],
-  ['bow', '🙇 ينحني'], ['point', '👉 يشير'], ['clap', '👏 يصفّق']
+  ['wave', '👋 يلوّح'], ['run', '🏃 يجري'], ['jump', '🦘 يقفز'], ['sit', '🪑 يجلس'],
+  ['bow', '🙇 ينحني'], ['point', '👉 يشير'], ['clap', '👏 يصفّق'],
+  ['dance', '💃 يرقص'], ['punch', '🥊 يلكم'], ['cheer', '🎉 يحتفل'], ['cry', '😢 يبكي']
 ];
 
 // ---------- اللقطات ----------
@@ -581,6 +612,7 @@ export function serialize() {
     })),
     shots: S.shots, sfx: S.sfx,
     spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
+    bubbles: S.bubbles || [],
   });
 }
 export function deserialize(json) {
@@ -601,13 +633,16 @@ export function deserialize(json) {
   S.sfx = d.sfx || [];
   S.texts = d.texts || [];
   S.narr = d.narr || [];
+  S.bubbles = d.bubbles || [];
+  clearBubbleSprites();
   setWeather(d.weather || 'none');
   for (const sp of d.spots || []) addSpot(sp);
   applySun(); applyVolume();
 }
 export function clearAll() {
   for (const o of [...S.objects]) removeObject(o.id);
-  S.shots = []; S.sfx = []; S.texts = []; S.narr = [];
+  S.shots = []; S.sfx = []; S.texts = []; S.narr = []; S.bubbles = [];
+  clearBubbleSprites();
   setWeather('none');
   for (const sp of [...S.spots]) removeSpot(sp.id);
   S.selected = null; S.time = 0;
@@ -668,8 +703,10 @@ function animate(now) {
     applyTime(S.time + dt);
     checkSfx(prev, S.time);
     checkNarr(prev, S.time);
+    checkShotMood();
     if (S.time >= S.filmDur) { pause(); if (onFilmEnd) onFilmEnd(); }
   }
+  updateBubbles(S.time);
   updateWeatherFX(S.time, dt);
   if (S.playing) {
     const sh = activeShot(S.time);
@@ -894,7 +931,15 @@ function renderSceneTab() {
         <input type="number" id="walk-z" placeholder="Z" style="width:56px;flex:none">
         <button class="chip-btn" id="walk-add">🚶 أضف مشي</button></div>
       <div class="row"><label>إيماءة</label><select id="gest-sel">${GESTURES.map(g => `<option value="${g[0]}">${g[1]}</option>`).join('')}</select>
-        <button class="chip-btn" id="gest-add">أضف عند ${S.time.toFixed(1)}ث</button></div>`;
+        <button class="chip-btn" id="gest-add">أضف عند ${S.time.toFixed(1)}ث</button></div>
+      <div class="row"><label>يقول</label><input type="text" id="bub-text" placeholder="جملة الحوار…"></div>
+      <button class="chip-btn" id="bub-add" style="width:100%">💬 فقاعة كلام عند ${S.time.toFixed(1)}ث</button>`;
+    html += `<div class="obj-list" style="max-height:70px;margin-top:5px">`;
+    S.bubbles.forEach((b, i) => {
+      if (b.objId !== sel.id) return;
+      html += `<div class="obj-item"><span class="nm">💬 ${esc(b.text)} @${b.time.toFixed(1)}ث</span><span class="x" data-del-bub="${i}">✕</span></div>`;
+    });
+    html += `</div>`;
     }
     html += `<div class="obj-list" style="max-height:110px;margin-top:6px">`;
     sel.track.actions.forEach((a, i) => {
@@ -958,6 +1003,19 @@ function renderSceneTab() {
       sel.track.actions.push({ type: 'gesture', name: document.getElementById('gest-sel').value, time: S.time, dur: 2 });
       toast('إيماءة عند ' + S.time.toFixed(1) + ' ث'); renderPanel(); drawTimeline();
     };
+    const ba = document.getElementById('bub-add');
+    if (ba) ba.onclick = () => {
+      const txt = document.getElementById('bub-text').value.trim();
+      if (!txt) return toast('اكتب جملة الحوار أولًا');
+      S.bubbles.push({ id: genId(), objId: sel.id, time: S.time, dur: 3, text: txt });
+      toast('فقاعة كلام @ ' + S.time.toFixed(1) + ' ث 💬'); renderPanel(); drawTimeline(); saveLocal();
+    };
+    panelBody.querySelectorAll('[data-del-bub]').forEach(el => el.onclick = () => {
+      const b = S.bubbles[+el.dataset.delBub];
+      const sp = bubbleSprites.get(b.id);
+      if (sp) { sp.parent?.remove(sp); bubbleSprites.delete(b.id); }
+      S.bubbles.splice(+el.dataset.delBub, 1); renderPanel(); drawTimeline();
+    });
     panelBody.querySelectorAll('[data-del-act]').forEach(el => el.onclick = () => {
       sel.track.actions.splice(+el.dataset.delAct, 1); renderPanel(); drawTimeline();
     });
@@ -980,7 +1038,10 @@ function renderShotsTab() {
       <div class="row"><label>انتقال</label><select data-shot-tr="${sh.id}">
         <option value="cut" ${sh.transition !== 'fade' ? 'selected' : ''}>قطع مباشر</option>
         <option value="fade" ${sh.transition === 'fade' ? 'selected' : ''}>تلاشي أسود</option></select>
-      <label>تتبع المحدد</label><input type="checkbox" id="sh-follow-${sh.id}" style="width:18px;height:18px;accent-color:var(--accent)" ${getObj(S.selected) && getObj(S.selected).kind === 'char' ? '' : 'disabled'}></div>
+      <label>موسيقى</label><select data-shot-mood="${sh.id}">
+        <option value="" ${!sh.mood ? 'selected' : ''}>الافتراضية</option>
+        ${MOOD_KEYS.map(k => `<option value="${k}" ${sh.mood === k ? 'selected' : ''}>${moodName(k)}</option>`).join('')}</select></div>
+      <div class="row"><label>تتبع المحدد</label><input type="checkbox" id="sh-follow-${sh.id}" style="width:18px;height:18px;accent-color:var(--accent)" ${getObj(S.selected) && getObj(S.selected).kind === 'char' ? '' : 'disabled'}></div>
       <button class="chip-btn sel" data-shot-key="${sh.id}" style="width:100%">📸 التقط الكاميرا الحالية @ ${S.time.toFixed(1)}ث</button>
       <div class="obj-list" style="max-height:80px;margin-top:6px">`;
     sh.keys.forEach((k, ki) => {
@@ -1017,6 +1078,10 @@ function renderShotsTab() {
   panelBody.querySelectorAll('[data-shot-tr]').forEach(el => el.onchange = () => {
     const sh = S.shots.find(s => s.id === el.dataset.shotTr);
     sh.transition = el.value; toast('الانتقال: ' + (el.value === 'fade' ? 'تلاشي 🌑' : 'قطع ✂️')); saveLocal();
+  });
+  panelBody.querySelectorAll('[data-shot-mood]').forEach(el => el.onchange = () => {
+    const sh = S.shots.find(s => s.id === el.dataset.shotMood);
+    sh.mood = el.value || null; toast('موسيقى اللقطة: ' + (el.value ? moodName(el.value) : 'الافتراضية')); saveLocal();
   });
   panelBody.querySelectorAll('[data-del-shot]').forEach(el => el.onclick = () => {
     removeShot(el.dataset.delShot); renderPanel(); drawTimeline();
@@ -1182,13 +1247,29 @@ function buildDemo() {
 let recorder = null, recChunks = [];
 function exportFilm() {
   if (S.playing) pause();
+  overlay(true, '', 'اختر جودة التصدير — 1080p أعلى جودة لكنه أبطأ وأثقل:', [
+    { t: '🎬 تصدير 720p', cls: 'primary', fn: () => { overlay(false); doExport(1280, 720); } },
+    { t: '💎 تصدير 1080p', fn: () => { overlay(false); doExport(1920, 1080); } },
+    { t: 'إلغاء', fn: () => overlay(false) },
+  ]);
+}
+function doExport(exW, exH) {
   ensureAudio(); audio.ctx.resume();
+  // دقة التصدير
+  renderer.setPixelRatio(1);
+  renderer.setSize(exW, exH, false);
+  camera.aspect = exW / exH; camera.updateProjectionMatrix();
+  filmCam.aspect = exW / exH; filmCam.updateProjectionMatrix();
+  const restoreView = () => {
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    resize();
+  };
   const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus'
     : MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '';
   const stream = canvas.captureStream(30);
   const atrack = audio.dest.stream.getAudioTracks()[0];
   if (atrack) stream.addTrack(atrack);
-  try { recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8_000_000 } : undefined); }
+  try { recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: exW > 1300 ? 14_000_000 : 8_000_000 } : undefined); }
   catch (e) { recorder = new MediaRecorder(stream); }
   recChunks = [];
   recorder.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
@@ -1196,6 +1277,7 @@ function exportFilm() {
     document.getElementById('rec-badge').classList.remove('on');
     overlay(false);
     onFilmEnd = null;
+    restoreView();
     const blob = new Blob(recChunks, { type: 'video/webm' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1204,7 +1286,7 @@ function exportFilm() {
     setTimeout(() => URL.revokeObjectURL(url), 30000);
     toast('تم تصدير الفيلم ⬇️ (' + (blob.size / 1048576).toFixed(1) + ' م.ب)');
   };
-  overlay(true, 'جارٍ تصوير وتصدير فيلمك…', 'الفيلم يُعرض الآن من البداية ويُسجَّل لقطة بلقطة. لا تغلق الصفحة.');
+  overlay(true, 'جارٍ تصوير وتصدير فيلمك…', 'الفيلم يُعرض الآن من البداية ويُسجَّل لقطة بلقطة (' + exW + '×' + exH + '). لا تغلق الصفحة.');
   document.getElementById('rec-badge').classList.add('on');
   seek(0);
   recorder.start(250);
@@ -1604,8 +1686,11 @@ function buildDemoChase() {
   ];
   S.texts = [
     { id: genId(), time: 0.3, dur: 2.6, text: 'مطاردة في الصحراء', style: 'card', color: '#f5b942' },
-    { id: genId(), time: 13.8, dur: 3, text: 'الحارس: قِف مكانك!', style: 'sub', color: '#ffffff' },
     { id: genId(), time: 22, dur: 2.6, text: 'يتبع…', style: 'title', color: '#f5b942' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: guard.id, time: 14.5, dur: 2.6, text: 'قِف مكانك أيها اللص!' },
+    { id: genId(), objId: runner.id, time: 18, dur: 2.8, text: 'لن تمسكني أبدًا!' },
   ];
   S.weather = 'dust'; setWeather('dust');
   S.sun.tod = 0.42; S.sun.intensity = 1.35;
@@ -1644,8 +1729,11 @@ function buildDemoNile() {
   ];
   S.texts = [
     { id: genId(), time: 0.4, dur: 2.8, text: 'ليلة على النيل', style: 'card', color: '#4ecdc4' },
-    { id: genId(), time: 9.5, dur: 3, text: 'ليلى: أهلاً يا كريم!', style: 'sub', color: '#ffffff' },
     { id: genId(), time: 21.5, dur: 2.8, text: 'النهاية', style: 'title', color: '#4ecdc4' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: girl.id, time: 8.5, dur: 3, text: 'أهلًا يا كريم! الجو جميل الليلة' },
+    { id: genId(), objId: boy.id, time: 12, dur: 3, text: 'وأجمل بوجودك يا ليلى' },
   ];
   S.sun.tod = 0.82; S.sun.intensity = 0.9; S.ambient = 0.5;
   addSpot({ pos: [0, 5, 8], color: 0xffb060, intensity: 90, target: [0, 1, 4] });
@@ -1665,3 +1753,139 @@ document.getElementById('btn-demo').onclick = () => {
 // أزرار التراجع/الإعادة في الشريط العلوي
 document.getElementById('btn-undo').onclick = () => undo();
 document.getElementById('btn-redo').onclick = () => redo();
+
+// ================== الجولة ٣ ==================
+S.bubbles = S.bubbles || [];   // {id, objId, time, dur, text}
+
+// ---------- سحب العناصر داخل العرض ----------
+let dragObj = null;
+const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const viewportEl = document.getElementById('viewport');
+viewportEl.addEventListener('pointerdown', e => {
+  if (S.playing || !S.selected) return;
+  const o = getObj(S.selected);
+  if (!o) return;
+  const r = canvas.getBoundingClientRect();
+  ptr.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ptr.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(o.group.children, true);
+  if (hits.length) {
+    dragObj = o;
+    controls.enabled = false;
+    e.stopPropagation();
+  }
+}, true);
+addEventListener('pointermove', e => {
+  if (!dragObj) return;
+  const r = canvas.getBoundingClientRect();
+  ptr.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ptr.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  const hit = new THREE.Vector3();
+  if (ray.ray.intersectPlane(dragPlane, hit)) {
+    dragObj.group.position.x = Math.max(-70, Math.min(70, hit.x));
+    dragObj.group.position.z = Math.max(-70, Math.min(70, hit.z));
+    if (activeTab === 'scene') {
+      const sx = document.getElementById('sel-x'), sz = document.getElementById('sel-z');
+      if (sx) { sx.value = dragObj.group.position.x; }
+      if (sz) { sz.value = dragObj.group.position.z; }
+    }
+  }
+}, true);
+addEventListener('pointerup', () => {
+  if (dragObj) {
+    dragObj = null;
+    if (!S.playing) controls.enabled = true;
+  }
+}, true);
+
+// ---------- فقاعات الكلام ----------
+const bubbleSprites = new Map();
+function makeBubbleTexture(text) {
+  const c = document.createElement('canvas');
+  c.width = 640; c.height = 300;
+  const g = c.getContext('2d');
+  g.direction = 'rtl'; g.textAlign = 'center';
+  g.font = '700 44px Cairo, sans-serif';
+  // تقسيم السطور
+  const words = text.split(' ');
+  const lines = []; let line = '';
+  for (const w of words) {
+    if (g.measureText(line + ' ' + w).width > 540 && line) { lines.push(line); line = w; }
+    else line = line ? line + ' ' + w : w;
+  }
+  if (line) lines.push(line);
+  const bh = 60 + lines.length * 56;
+  const by = 10;
+  g.fillStyle = '#ffffff';
+  g.strokeStyle = '#222'; g.lineWidth = 5;
+  g.beginPath(); g.roundRect(15, by, 610, bh, 34); g.fill(); g.stroke();
+  // ذيل الفقاعة
+  g.beginPath();
+  g.moveTo(300, by + bh); g.lineTo(340, by + bh); g.lineTo(312, by + bh + 48);
+  g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#1a1a22';
+  lines.forEach((l, i) => g.fillText(l, 320, by + 48 + i * 56, 560));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+function updateBubbles(t) {
+  const active = new Set();
+  for (const b of S.bubbles) {
+    if (t >= b.time && t <= b.time + b.dur) active.add(b.id);
+    let sp = bubbleSprites.get(b.id);
+    if (t >= b.time && t <= b.time + b.dur) {
+      if (!sp) {
+        sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeBubbleTexture(b.text), transparent: true, depthTest: false }));
+        sp.renderOrder = 3;
+        sp.scale.set(3.4, 1.6, 1);
+        bubbleSprites.set(b.id, sp);
+        const o = getObj(b.objId);
+        if (o) o.group.add(sp);
+        sp.position.set(0, 3.6, 0);
+      }
+      sp.visible = true;
+    } else if (sp) sp.visible = false;
+  }
+}
+function clearBubbleSprites() {
+  for (const sp of bubbleSprites.values()) {
+    sp.parent?.remove(sp);
+    sp.material.map.dispose(); sp.material.dispose();
+  }
+  bubbleSprites.clear();
+}
+
+// ---------- بوستر (صورة من الفيلم) ----------
+function capturePoster() {
+  renderer.render(scene, S.playing ? filmCam : camera);
+  renderer.autoClear = false; renderer.clearDepth();
+  renderer.render(overlayScene, overlayCam);
+  renderer.autoClear = true;
+  canvas.toBlob(blob => {
+    if (!blob) return toast('تعذر التقاط البوستر');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (S.title || 'فيلم') + '-بوستر.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 20000);
+    toast('تم حفظ البوستر 📸');
+  }, 'image/png');
+}
+document.getElementById('btn-poster')?.addEventListener('click', capturePoster);
+
+// ---------- موسيقى لكل لقطة ----------
+let lastShotId = null;
+function checkShotMood() {
+  const sh = activeShot(S.time);
+  if (!sh) return;
+  if (sh.id !== lastShotId) {
+    lastShotId = sh.id;
+    if (sh.mood && sh.mood !== S.music.mood) {
+      S.music.mood = sh.mood;
+      if (S.playing) startMusic(S.time);
+    }
+  }
+             }
