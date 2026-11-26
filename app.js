@@ -18,6 +18,8 @@ export const S = {
   selected: null,
   grade: 0,          // فلتر لوني: 0 بدون، 1 سيبيا، 2 أبيض وأسود، 3 مشبع، 4 غروب دافئ
   groundColor: 0xd9c391,   // سطح الأرض: صحراء افتراضيًا
+  skyColor: 0,       // 0 = تلقائي حسب وقت اليوم، وإلا لون محدد
+  fogFar: 220,
   title: 'فيلمي القصير'
 };
 let nid = 1;
@@ -121,12 +123,13 @@ export function applySun() {
   const r = 80;
   sun.position.set(Math.cos(ang) * r, Math.max(4, Math.sin(ang) * r), 30);
   const dayness = Math.max(0, Math.sin(ang));
-  const c = skyColor(tod);
+  const c = S.skyColor ? new THREE.Color(S.skyColor) : skyColor(tod);
   scene.background = c; scene.fog.color = c;
+  scene.fog.far = S.fogFar || 220; scene.fog.near = (S.fogFar && S.fogFar < 150) ? 8 : 60;
   sun.intensity = S.sun.intensity * (0.15 + dayness);
   sun.color.setHSL(0.09 + 0.04 * dayness, 0.5, 0.5 + 0.4 * dayness);
   hemi.intensity = S.ambient * (0.25 + dayness * 0.9);
-  stars.visible = tod > 0.55 && tod < 0.95;
+  stars.visible = (tod > 0.55 && tod < 0.95) || (S.skyColor === 0x04122a);
 }
 // نجوم
 const starGeo = new THREE.BufferGeometry();
@@ -403,7 +406,59 @@ export const PROP_DEFS = {
     land.castShadow = false; land.receiveShadow = false; land.name = 'planetball'; g.add(land);
     return g;
   }},
+  fish: { name: 'سمكة', make() { return makeFish(0xf2a23a, 1); } },
+  fish2: { name: 'سمكة زرقاء', make() { return makeFish(0x3aa0f2, 0.8); } },
+  shark: { name: 'قرش', make() { return makeFish(0x7a8794, 3.2, 4.2); } },
+  coral: { name: 'شعاب مرجانية', make() {
+    const g = new THREE.Group();
+    const cols = [0xe8587a, 0xf29a3a, 0xb04ae0];
+    for (let i = 0; i < 7; i++) {
+      const h = 1.2 + (i % 3) * 0.7, a = i * 0.9;
+      const c = mesh(new THREE.ConeGeometry(0.28, h, 6), MAT(cols[i % 3], 0.6), Math.cos(a) * 0.7, h / 2, Math.sin(a) * 0.7);
+      c.rotation.z = Math.cos(a) * 0.25; c.rotation.x = Math.sin(a) * 0.25; g.add(c);
+    }
+    return g;
+  }},
+  seaweed: { name: 'عشب بحري', make() {
+    const g = new THREE.Group();
+    for (let i = 0; i < 5; i++) {
+      const s = mesh(new THREE.CylinderGeometry(0.05, 0.12, 2.6 + (i % 2), 5), MAT(0x2f9a52, 0.7), (i - 2) * 0.3, 1.5, (i % 2) * 0.3);
+      s.name = 'sway'; g.add(s);
+    }
+    return g;
+  }},
+  chest: { name: 'صندوق كنز', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(1.6, 0.8, 1), MAT(0x7a4a26, 0.7), 0, 0.4, 0));
+    const lid = mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.6, 12, 1, false, 0, Math.PI), MAT(0x8a5a30, 0.7), 0, 0.8, 0);
+    lid.rotation.z = Math.PI / 2; lid.rotation.y = Math.PI / 2; g.add(lid);
+    g.add(mesh(new THREE.SphereGeometry(0.4, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd34a }), 0, 1.0, 0, false));
+    const l = new THREE.PointLight(0xffc840, 2.4, 10, 1.6); l.position.y = 1.2; l.name = 'firelight'; g.add(l);
+    return g;
+  }},
+  sub: { name: 'غواصة', make() {
+    const g = new THREE.Group();
+    const hull = mesh(new THREE.CapsuleGeometry(1.1, 3, 8, 16), MAT(0xf2c230, 0.4), 0, 2.4, 0);
+    hull.rotation.z = Math.PI / 2; g.add(hull);
+    g.add(mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.9, 10), MAT(0xd9a820, 0.4), 0.2, 3.7, 0));
+    const win = mesh(new THREE.SphereGeometry(0.4, 10, 8), new THREE.MeshStandardMaterial({ color: 0x8ad0f0, roughness: 0.2, metalness: 0.5 }), 1.9, 2.5, 0);
+    g.add(win);
+    const prop = mesh(new THREE.BoxGeometry(0.1, 1.2, 0.18), MAT(0x444a55), -2.4, 2.4, 0); prop.name = 'subprop'; g.add(prop);
+    return g;
+  }},
 };
+function makeFish(color, s, yT) {
+  const g = new THREE.Group();
+  const body = mesh(new THREE.SphereGeometry(0.5, 12, 10), MAT(color, 0.45), 0, 3, 0);
+  body.scale.set(0.55, 0.7, 1.4); g.add(body);
+  const tail = mesh(new THREE.ConeGeometry(0.4, 0.7, 4), MAT(color, 0.45), 0, 3, -0.85);
+  tail.rotation.x = -Math.PI / 2; tail.name = 'fishtail'; g.add(tail);
+  g.add(mesh(new THREE.SphereGeometry(0.07, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }), 0.22, 3.1, 0.5, false));
+  g.add(mesh(new THREE.SphereGeometry(0.07, 6, 6), new THREE.MeshBasicMaterial({ color: 0x111111 }), -0.22, 3.1, 0.5, false));
+  g.scale.setScalar(s); g.position.y = (yT ?? 3) - 3 * s;
+  const w = new THREE.Group(); w.add(g);
+  return w;
+}
 
 // ---------- إدارة العناصر ----------
 export function addCharacter(name, opts = {}, x = 0, z = 0) {
@@ -488,6 +543,7 @@ function poseCharacter(o, t) {
   const { p, walking, gesture, speed } = evalObject(o, t);
   const g = o.group, parts = g.userData.parts;
   g.position.set(p.x, p.y, p.z);
+  g.rotation.order = 'XYZ'; g.rotation.x = 0;
   g.rotation.y = p.ry || 0;
   const running = walking && speed > 2.2;
   const ph = t * (running ? 11 : 7);
@@ -558,6 +614,12 @@ function poseCharacter(o, t) {
     } else if (gesture.name === 'think') {
       parts.armR.rotation.x = -2.1 * env; parts.armR.rotation.y = 0.6 * env;
       parts.head.rotation.x = 0.18 * env; parts.head.rotation.z = 0.15 * env;
+    } else if (gesture.name === 'swim') {
+      const sp = k * 26;
+      g.rotation.order = 'YXZ'; g.rotation.x = 1.15 * env;
+      g.position.y = 1.3 * env + Math.sin(k * Math.PI * 3) * 0.2;
+      parts.armL.rotation.x = Math.sin(sp) * 1.3; parts.armR.rotation.x = -Math.sin(sp) * 1.3;
+      parts.legL.rotation.x = Math.sin(sp * 1.4) * 0.5; parts.legR.rotation.x = -Math.sin(sp * 1.4) * 0.5;
     } else if (gesture.name === 'float') {
       const bob = Math.sin(k * Math.PI * 2) * 0.35;
       g.position.y = 1.1 + bob;
@@ -582,7 +644,7 @@ export const GESTURES = [
   ['bow', '🙇 ينحني'], ['point', '👉 يشير'], ['clap', '👏 يصفّق'],
   ['dance', '💃 يرقص'], ['punch', '🥊 يلكم'], ['cheer', '🎉 يحتفل'], ['cry', '😢 يبكي'],
   ['think', '🤔 يفكّر'], ['faint', '😵 يغمى عليه'], ['ride', '🏍️ يقود موتوسيكل'],
-  ['float', '🧑‍🚀 يطفو']
+  ['float', '🧑‍🚀 يطفو'], ['swim', '🏊 يسبح']
 ];
 
 // ---------- اللقطات ----------
@@ -806,7 +868,7 @@ export function serialize() {
     shots: S.shots, sfx: S.sfx,
     spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
     bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0, nameTags: !!S.nameTags,
-    groundColor: S.groundColor || 0xd9c391,
+    groundColor: S.groundColor || 0xd9c391, skyColor: S.skyColor || 0, fogFar: S.fogFar || 220,
   });
 }
 export function deserialize(json) {
@@ -832,6 +894,7 @@ export function deserialize(json) {
   S.grade = d.grade || 0;
   S.nameTags = d.nameTags || false;
   S.groundColor = d.groundColor || 0xd9c391; applyGround();
+  S.skyColor = d.skyColor || 0; S.fogFar = d.fogFar || 220;
   const slBtn = document.getElementById('tl-slow'); if (slBtn) slBtn.classList.toggle('sel', S.slowmo);
   clearBubbleSprites();
   setWeather(d.weather || 'none');
@@ -845,6 +908,7 @@ export function clearAll() {
   setWeather('none');
   for (const sp of [...S.spots]) removeSpot(sp.id);
   S.selected = null; S.time = 0;
+  S.groundColor = 0xd9c391; S.skyColor = 0; S.fogFar = 220; applyGround();
 }
 
 // ---------- كشافات ----------
@@ -894,6 +958,9 @@ function applyTime(t) {
     if (m.name === 'laserbeam') m.visible = Math.sin(t * 2.4 + m.id) > -0.75;
     if (m.name === 'flagcloth') { m.rotation.y = Math.sin(t * 2.8 + m.id) * 0.22; m.scale.x = 1 + Math.sin(t * 5 + m.id) * 0.07; }
     if (m.name === 'planetball') m.rotation.y = t * 0.04;
+    if (m.name === 'fishtail') m.rotation.y = Math.sin(t * 9 + m.id) * 0.5;
+    if (m.name === 'sway') m.rotation.z = Math.sin(t * 1.6 + m.id) * 0.18;
+    if (m.name === 'subprop') m.rotation.x = t * 14;
   });
   // كشافات تكنس المكان أو تنبض كإنذار
   for (const sp of S.spots) {
@@ -1447,7 +1514,11 @@ function renderLightTab() {
       <option value="none" ${S.weather === 'none' ? 'selected' : ''}>بدون ☀️</option>
       <option value="rain" ${S.weather === 'rain' ? 'selected' : ''}>مطر 🌧️</option>
       <option value="snow" ${S.weather === 'snow' ? 'selected' : ''}>ثلج ❄️</option>
-      <option value="dust" ${S.weather === 'dust' ? 'selected' : ''}>عاصفة رملية 🌪️</option></select></div>
+      <option value="dust" ${S.weather === 'dust' ? 'selected' : ''}>عاصفة رملية 🌪️</option>
+      <option value="bubble" ${S.weather === 'bubble' ? 'selected' : ''}>فقاعات تحت الماء 🫧</option>
+      <option value="firefly" ${S.weather === 'firefly' ? 'selected' : ''}>يراعات ليلية ✨</option></select></div>
+    <div class="row"><label>لون السماء</label><select id="sky-sel">
+      ${[[0, 'تلقائي ☀️'], [0x04122a, 'فضاء 🌌'], [0x0a5a78, 'تحت الماء 🌊'], [0x1a1a24, 'ليل داكن 🌑']].map(([v, n]) => `<option value="${v}" ${(S.skyColor || 0) === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="row"><label>لون الأرض</label><select id="ground-sel">
       ${[[0xd9c391, 'صحراء 🏜️'], [0x7a9a5a, 'عشب 🌿'], [0x9a9aa2, 'قمر 🌕'], [0xe8ecf2, 'ثلج ❄️'], [0x3a3f4a, 'ليل أسفلت 🌃']].map(([v, n]) => `<option value="${v}" ${S.groundColor === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="row"><label>فلتر لوني</label><select id="grade-sel">
@@ -1468,6 +1539,7 @@ function renderLightTab() {
   document.getElementById('amb-int').oninput = e => { S.ambient = +e.target.value; applySun(); };
   document.getElementById('weather-sel').onchange = e => { setWeather(e.target.value); toast('الطقس: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('grade-sel').onchange = e => { S.grade = +e.target.value; toast('الفلتر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
+  document.getElementById('sky-sel').onchange = e => { S.skyColor = +e.target.value; S.fogFar = S.skyColor === 0x0a5a78 ? 55 : 220; applySun(); toast('السماء: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('ground-sel').onchange = e => { S.groundColor = +e.target.value; applyGround(); toast('الأرض: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('spot-add').onclick = () => {
     addSpot({ pos: [Math.random() * 10 - 5, 7, Math.random() * 8 + 2], color: 0xfff2cc, intensity: 60 });
@@ -1844,21 +1916,22 @@ export function setWeather(type) {
   S.weather = type;
   if (weatherPts) { scene.remove(weatherPts); weatherPts.geometry.dispose(); weatherPts = null; }
   if (type === 'none') return;
-  const N = type === 'dust' ? 500 : 1600;
+  const N = type === 'dust' ? 500 : type === 'bubble' ? 380 : type === 'firefly' ? 140 : 1600;
   const pos = new Float32Array(N * 3);
   weatherVel = new Float32Array(N);
   for (let i = 0; i < N; i++) {
     pos[i * 3] = Math.random() * 120 - 60;
-    pos[i * 3 + 1] = Math.random() * 30;
+    pos[i * 3 + 1] = type === 'firefly' ? 0.5 + Math.random() * 5 : type === 'bubble' ? Math.random() * 16 : Math.random() * 30;
     pos[i * 3 + 2] = Math.random() * 120 - 60;
-    weatherVel[i] = type === 'rain' ? 14 + Math.random() * 8 : type === 'snow' ? 1.5 + Math.random() * 2 : 0.6 + Math.random();
+    if (type === 'bubble' || type === 'firefly') { pos[i * 3] = Math.random() * 60 - 30; pos[i * 3 + 2] = Math.random() * 60 - 30; }
+    weatherVel[i] = type === 'bubble' ? 0.8 + Math.random() * 1.6 : type === 'firefly' ? Math.random() * 6.28 : type === 'rain' ? 14 + Math.random() * 8 : type === 'snow' ? 1.5 + Math.random() * 2 : 0.6 + Math.random();
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const mat = new THREE.PointsMaterial({
-    color: type === 'rain' ? 0x9db8d9 : type === 'snow' ? 0xffffff : 0xd8c090,
-    size: type === 'rain' ? 0.12 : type === 'snow' ? 0.25 : 0.3,
-    transparent: true, opacity: type === 'dust' ? 0.35 : 0.75,
+    color: type === 'rain' ? 0x9db8d9 : type === 'snow' ? 0xffffff : type === 'bubble' ? 0xcdf2ff : type === 'firefly' ? 0xfff08a : 0xd8c090,
+    size: type === 'rain' ? 0.12 : type === 'snow' ? 0.25 : type === 'bubble' ? 0.38 : type === 'firefly' ? 0.45 : 0.3,
+    transparent: true, opacity: type === 'dust' ? 0.35 : type === 'bubble' ? 0.6 : 0.75,
   });
   weatherPts = new THREE.Points(geo, mat);
   weatherPts.frustumCulled = false;
@@ -1868,6 +1941,23 @@ function updateWeatherFX(t, dt) {
   if (!weatherPts) return;
   const pos = weatherPts.geometry.attributes.position;
   const fall = S.weather === 'dust' ? 0.4 : 1;
+  if (S.weather === 'bubble') {
+    for (let i = 0; i < weatherVel.length; i++) {
+      let y = pos.getY(i) + weatherVel[i] * dt;
+      if (y > 16) y = 0;
+      pos.setY(i, y); pos.setX(i, pos.getX(i) + Math.sin(t * 2 + i) * dt * 0.3);
+    }
+    pos.needsUpdate = true; return;
+  }
+  if (S.weather === 'firefly') {
+    for (let i = 0; i < weatherVel.length; i++) {
+      const a = weatherVel[i] + t * 0.7;
+      pos.setX(i, pos.getX(i) + Math.cos(a) * dt * 1.2);
+      pos.setZ(i, pos.getZ(i) + Math.sin(a * 1.3) * dt * 1.2);
+      pos.setY(i, 0.8 + (Math.sin(t * 1.5 + i) * 0.5 + 0.5) * 4.5);
+    }
+    pos.needsUpdate = true; return;
+  }
   for (let i = 0; i < weatherVel.length; i++) {
     let y = pos.getY(i) - weatherVel[i] * dt * fall;
     if (y < 0) y = 28 + Math.random() * 3;
@@ -2334,6 +2424,66 @@ function buildDemoFootball() {
 }
 
 // ---------- اختيار القالب ----------
+function buildDemoUnder() {
+  clearAll();
+  S.filmDur = 28; S.title = 'أعماق البحر';
+  S.groundColor = 0xcbb98a; S.skyColor = 0x0a5a78; S.fogFar = 55; applyGround();
+  addProp('sub', 16, -14, 1.1);
+  addProp('chest', -6, -8); addProp('coral', -12, -4, 1.4); addProp('coral', 10, -4, 1.2); addProp('coral', 4, -16, 1.6);
+  addProp('seaweed', -9, -12, 1.2); addProp('seaweed', 8, -9); addProp('seaweed', -16, 2, 1.3); addProp('seaweed', 2, 8);
+  addProp('rock', -4, -14, 1.8); addProp('rock', 14, 6, 1.2);
+  const f1 = addProp('fish', -18, 10); const f2 = addProp('fish2', 18, 4); const f3 = addProp('fish', -14, -2, 1);
+  const sk = addProp('shark', 30, -6, 1);
+  const d1 = addCharacter('غواص', { shirt: 0x1a1c26, pants: 0x1a1c26, skin: 0xc98f5e, hair: 0x1a1c26 }, 14, -12);
+  const d2 = addCharacter('غواصة', { shirt: 0xe8872a, pants: 0x1a1c26, skin: 0xd9a06a, hair: 0x1a1c26 }, 15, -10);
+  d1.track.actions.push({ type: 'walk', t0: 0.5, t1: 6, fx: 14, fz: -12, tx: 2, tz: -4 });
+  d1.track.actions.push({ type: 'gesture', name: 'swim', time: 6.2, dur: 5 });
+  d1.track.actions.push({ type: 'walk', t0: 11.5, t1: 14.5, fx: 2, fz: -4, tx: -4, tz: -6 });
+  d1.track.actions.push({ type: 'gesture', name: 'point', time: 15, dur: 2.2 });
+  d1.track.actions.push({ type: 'gesture', name: 'cheer', time: 17.5, dur: 3 });
+  d1.track.actions.push({ type: 'walk', t0: 22, t1: 27, fx: -4, fz: -6, tx: 6, tz: 2 });
+  d2.track.actions.push({ type: 'walk', t0: 1, t1: 7, fx: 15, fz: -10, tx: 6, tz: -2 });
+  d2.track.actions.push({ type: 'gesture', name: 'swim', time: 7.5, dur: 5 });
+  d2.track.actions.push({ type: 'walk', t0: 12.5, t1: 15.5, fx: 6, fz: -2, tx: -2, tz: -2 });
+  d2.track.actions.push({ type: 'gesture', name: 'wave', time: 16, dur: 2.5 });
+  d2.track.actions.push({ type: 'walk', t0: 21, t1: 27, fx: -2, fz: -2, tx: 10, tz: 4 });
+  f1.track.actions.push({ type: 'walk', t0: 0, t1: 14, fx: -18, fz: 10, tx: 10, tz: 6 });
+  f1.track.actions.push({ type: 'walk', t0: 14, t1: 28, fx: 10, fz: 6, tx: -18, tz: 12 });
+  f2.track.actions.push({ type: 'walk', t0: 0, t1: 14, fx: 18, fz: 4, tx: -10, tz: 0 });
+  f2.track.actions.push({ type: 'walk', t0: 14, t1: 28, fx: -10, fz: 0, tx: 18, tz: 8 });
+  f3.track.actions.push({ type: 'walk', t0: 2, t1: 16, fx: -14, fz: -2, tx: 8, tz: -10 });
+  f3.track.actions.push({ type: 'walk', t0: 16, t1: 28, fx: 8, fz: -10, tx: -16, tz: -4 });
+  sk.track.actions.push({ type: 'walk', t0: 15, t1: 28, fx: 30, fz: -6, tx: -20, tz: -2 });
+  [f1, f2, f3, sk, d1, d2].forEach(pinWalks);
+  const sh1 = addShot('الغطس', 0, 10); sh1.transition = 'fade';
+  shotKey(sh1, 0, [24, 5, 6], [12, 2, -10], 48, d1.id);
+  shotKey(sh1, 10, [10, 4, 4], [2, 2, -4], 46, d1.id);
+  const sh2 = addShot('الكنز', 10, 20); sh2.transition = 'fade';
+  shotKey(sh2, 10, [2, 3, 6], [-5, 1, -8], 44, null);
+  shotKey(sh2, 20, [-2, 2.6, 0], [-6, 1.2, -8], 40, null);
+  const sh3 = addShot('القرش', 20, 28); sh3.transition = 'fade'; sh3.shake = 0.4;
+  shotKey(sh3, 20, [6, 3, 14], [-2, 3.5, -2], 56, null);
+  shotKey(sh3, 28, [-8, 4, 14], [-14, 4, -2], 58, null);
+  S.music.mood = 'calm';
+  S.sfx = [
+    { id: genId(), time: 0.4, type: 'wind' }, { id: genId(), time: 6.3, type: 'whoosh' },
+    { id: genId(), time: 15.2, type: 'magic' }, { id: genId(), time: 17.6, type: 'bell' },
+    { id: genId(), time: 21, type: 'boom' }, { id: genId(), time: 23, type: 'wind' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'أعماق البحر', style: 'card', color: '#7fd8f0' },
+    { id: genId(), time: 25, dur: 2.8, text: 'الكنز لسه مش لوحدهم…', style: 'title', color: '#ffd34a' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: d1.id, time: 15.2, dur: 2.4, text: 'لقينا الكنز!' },
+    { id: genId(), objId: d2.id, time: 16.4, dur: 2.4, text: 'بس في قرش ورانا…' },
+  ];
+  S.weather = 'bubble'; setWeather('bubble');
+  S.sun.tod = 0.25; S.sun.intensity = 1.6; S.ambient = 1.0;
+  addSpot({ pos: [-2, 12, 6], color: 0xbfeaff, intensity: 70, target: [-2, 0, -4] });
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -2410,6 +2560,7 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '⚽ ماتش في الحارة', fn: () => { buildDemoFootball(); refreshAfterLoad(); overlay(false); toast('مشهد: ماتش في الحارة ▶'); } },
     { t: '🏍️ مطاردة الموتوسيكل', fn: () => { buildDemoMoto(); refreshAfterLoad(); overlay(false); toast('مشهد: مطاردة الموتوسيكل ▶'); } },
     { t: '🚨 سرقة المتحف', fn: () => { buildDemoHeist(); refreshAfterLoad(); overlay(false); toast('مشهد: سرقة المتحف ▶'); } },
+    { t: '🌊 أعماق البحر', fn: () => { buildDemoUnder(); refreshAfterLoad(); overlay(false); toast('مشهد: أعماق البحر ▶'); } },
     { t: '🚀 رحلة إلى القمر', fn: () => { buildDemoSpace(); refreshAfterLoad(); overlay(false); toast('مشهد: رحلة إلى القمر ▶'); } },
     { t: 'إلغاء', fn: () => overlay(false) },
   ]);
@@ -2599,6 +2750,7 @@ function checkShotMood() {
     }
   }
 }
+
 
 
 
