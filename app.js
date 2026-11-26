@@ -28,10 +28,10 @@ export const genId = () => 'o' + (nid++);
 
 // ---------- فلاتر لونية (تظهر في التصدير) ----------
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uMode: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, uMode: { value: 0 }, uVig: { value: 0 }, uGrain: { value: 0 }, uT: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform int uMode; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform int uMode; uniform float uVig; uniform float uGrain; uniform float uT; varying vec2 vUv;
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
       vec3 col = c.rgb;
@@ -39,6 +39,11 @@ const GradeShader = {
       else if (uMode == 2) { float g = dot(col, vec3(.299,.587,.114)); col = vec3(g * g * 0.4 + g * 0.75); }
       else if (uMode == 3) { float g = dot(col, vec3(.299,.587,.114)); col = clamp(mix(vec3(g), col, 1.65), 0., 1.) * 1.04; }
       else if (uMode == 4) col *= vec3(1.14, 1.0, 0.82);
+      vec2 q = vUv - 0.5;
+      float vg = smoothstep(0.85, 0.2, length(q * vec2(1.15, 1.0)));
+      col *= mix(1.0, vg, uVig);
+      float n = fract(sin(dot(vUv * 913.0 + uT, vec2(12.9898, 78.233))) * 43758.5453);
+      col += (n - 0.5) * 0.13 * uGrain;
       gl_FragColor = vec4(col, c.a);
     }`
 };
@@ -53,10 +58,11 @@ function ensureComposer() {
   composer.addPass(new OutputPass());
 }
 function render3D(cam) {
-  if (S.grade) {
+  if (S.grade || S.vig || S.grain) {
     ensureComposer();
     renderPass.camera = cam;
     gradePass.uniforms.uMode.value = S.grade;
+    gradePass.uniforms.uVig.value = S.vig || 0; gradePass.uniforms.uGrain.value = S.grain || 0; gradePass.uniforms.uT.value = (performance.now() % 1000) / 1000;
     composer.render();
   } else renderer.render(scene, cam);
 }
@@ -963,7 +969,7 @@ export function serialize() {
     })),
     shots: S.shots, sfx: S.sfx,
     spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
-    bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0, trails: S.trails || 'none', nameTags: !!S.nameTags,
+    bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0, vig: S.vig || 0, grain: S.grain || 0, trails: S.trails || 'none', nameTags: !!S.nameTags,
     groundColor: S.groundColor || 0xd9c391, skyColor: S.skyColor || 0, fogFar: S.fogFar || 220,
   });
 }
@@ -987,7 +993,7 @@ export function deserialize(json) {
   S.narr = d.narr || [];
   S.bubbles = d.bubbles || [];
   S.slowmo = d.slowmo || false;
-  S.grade = d.grade || 0;
+  S.grade = d.grade || 0; S.vig = d.vig || 0; S.grain = d.grain || 0;
   S.nameTags = d.nameTags || false; S.trails = d.trails || 'none';
   S.groundColor = d.groundColor || 0xd9c391; applyGround();
   S.skyColor = d.skyColor || 0; S.fogFar = d.fogFar || 220;
@@ -1005,6 +1011,7 @@ export function clearAll() {
   for (const sp of [...S.spots]) removeSpot(sp.id);
   S.selected = null; S.time = 0;
   if (S.sun) { S.sun.tl = null; S.sun.base = null; }
+  S.vig = 0; S.grain = 0;
   S.grade = 0; S.trails = 'none'; clearTrails(); S.groundColor = 0xd9c391; S.skyColor = 0; S.fogFar = 220; applyGround();
 }
 
@@ -1644,6 +1651,9 @@ function renderLightTab() {
       ${[[0xd9c391, 'صحراء 🏜️'], [0x7a9a5a, 'عشب 🌿'], [0x9a9aa2, 'قمر 🌕'], [0xe8ecf2, 'ثلج ❄️'], [0x3a3f4a, 'ليل أسفلت 🌃']].map(([v, n]) => `<option value="${v}" ${S.groundColor === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="row"><label>فلتر لوني</label><select id="grade-sel">
       ${GRADES.map(([v, n]) => `<option value="${v}" ${S.grade === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+    <div class="row"><label>تعتيم الأطراف</label><input type="range" id="fx-vig" min="0" max="1" step="0.05" value="${S.vig || 0}"></div>
+    <div class="row"><label>حبيبات الفيلم</label><input type="range" id="fx-grain" min="0" max="1" step="0.05" value="${S.grain || 0}"></div>
+    <button class="chip-btn sel" id="fx-cine" style="width:100%">🎞️ مظهر سينمائي بضغطة</button>
   </div>
   <div class="sec"><h4>🔦 كشافات تصوير</h4>
     <button class="chip-btn sel" id="spot-add" style="width:100%">＋ كشاف جديد</button>
@@ -1667,6 +1677,9 @@ function renderLightTab() {
   panelBody.querySelectorAll('[data-atmos]').forEach(b => b.onclick = () => { applyAtmos(b.dataset.atmos); toast('الأجواء: ' + b.textContent); saveLocal(); renderPanel(); });
   document.getElementById('trail-sel').onchange = e => { S.trails = e.target.value; clearTrails(); toast('الأثر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('weather-sel').onchange = e => { setWeather(e.target.value); toast('الطقس: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
+  document.getElementById('fx-vig').oninput = e => { S.vig = +e.target.value; saveLocal(); };
+  document.getElementById('fx-grain').oninput = e => { S.grain = +e.target.value; saveLocal(); };
+  document.getElementById('fx-cine').onclick = () => { S.vig = 0.7; S.grain = 0.4; saveLocal(); renderPanel(); toast('🎞️ مظهر سينمائي: أطراف معتمة وحبيبات فيلم'); };
   document.getElementById('grade-sel').onchange = e => { S.grade = +e.target.value; toast('الفلتر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('sky-sel').onchange = e => { S.skyColor = +e.target.value; S.fogFar = S.skyColor === 0x0a5a78 ? 55 : 220; applySun(); toast('السماء: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('ground-sel').onchange = e => { S.groundColor = +e.target.value; applyGround(); toast('الأرض: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
@@ -2763,6 +2776,7 @@ function buildDemoCorniche() {
   ];
   S.trails = 'dust';
   S.weather = 'none'; setWeather('none');
+  S.vig = 0.55; S.grain = 0.3;
   S.sun.tod = 0.38; S.sun.intensity = 1.3; S.ambient = 0.8; S.sun.base = 0.38; S.sun.tl = { on: true, to: 0.68 };
   addSpot({ pos: [6, 12, 8], color: 0xffd9a0, intensity: 55, target: [4, 0, 3] });
   seek(0); applySun();
