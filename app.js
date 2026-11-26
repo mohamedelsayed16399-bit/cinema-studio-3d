@@ -3039,33 +3039,62 @@ function buildDemoSpace() {
   seek(0); applySun();
 }
 
-document.getElementById('btn-demo').onclick = () => {
-  overlay(true, '', 'اختر مشهدًا جاهزًا للانطلاق منه — كل قالب قصة كاملة بلقطات وموسيقى ونصوص:', [
-    { t: '🏜️ لقاء عند الأهرام', fn: () => { buildDemo(); refreshAfterLoad(); overlay(false); toast('مشهد: لقاء عند الأهرام ▶'); } },
-    { t: '🗡️ مطاردة في الصحراء', fn: () => { buildDemoChase(); refreshAfterLoad(); overlay(false); toast('مشهد: مطاردة في الصحراء ▶'); } },
-    { t: '🌙 ليلة على النيل', fn: () => { buildDemoNile(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة على النيل ▶'); } },
-    { t: '💃 فرح في الحارة', fn: () => { buildDemoWedding(); refreshAfterLoad(); overlay(false); toast('مشهد: فرح في الحارة ▶'); } },
-    { t: '⚽ ماتش في الحارة', fn: () => { buildDemoFootball(); refreshAfterLoad(); overlay(false); toast('مشهد: ماتش في الحارة ▶'); } },
-    { t: '🏍️ مطاردة الموتوسيكل', fn: () => { buildDemoMoto(); refreshAfterLoad(); overlay(false); toast('مشهد: مطاردة الموتوسيكل ▶'); } },
-    { t: '🚨 سرقة المتحف', fn: () => { buildDemoHeist(); refreshAfterLoad(); overlay(false); toast('مشهد: سرقة المتحف ▶'); } },
-    { t: '🌊 أعماق البحر', fn: () => { buildDemoUnder(); refreshAfterLoad(); overlay(false); toast('مشهد: أعماق البحر ▶'); } },
-    { t: '🚀 رحلة إلى القمر', fn: () => { buildDemoSpace(); refreshAfterLoad(); overlay(false); toast('مشهد: رحلة إلى القمر ▶'); } },
-    { t: '🎲 مفاجأة! مشهد عشوائي', cls: 'primary', fn: () => {
-      const fns = [buildDemo, buildDemoChase, buildDemoNile, buildDemoWedding, buildDemoFootball, buildDemoMoto, buildDemoHeist, buildDemoUnder, buildDemoSpace, buildDemoCorniche, buildDemoRamadan, buildDemoGrad];
-      const f = fns[Math.floor(Math.random() * fns.length)];
-      f();
+// ---------- معرض القوالب (جولة ٢٧) ----------
+const GALLERY = [
+  { e: '🏜️', n: 'لقاء عند الأهرام', d: 'لقاء درامي قدّام الأهرام وقت الغروب', f: () => buildDemo(), c: ['مصر', 'دراما'], g: ['#e8a24a', '#7a3a1a'] },
+  { e: '🗡️', n: 'مطاردة في الصحراء', d: 'مطاردة سريعة بين الكثبان', f: () => buildDemoChase(), c: ['أكشن'], g: ['#d9a06a', '#3a2a1a'] },
+  { e: '🌙', n: 'ليلة على النيل', d: 'هدوء الليل ومراكب النيل', f: () => buildDemoNile(), c: ['مصر', 'ليل'], g: ['#2a3a7a', '#0a0a2a'] },
+  { e: '💃', n: 'فرح في الحارة', d: 'زفة وزغاريط ورقص', f: () => buildDemoWedding(), c: ['مصر', 'بهجة'], g: ['#d64a7a', '#4a1a3a'] },
+  { e: '⚽', n: 'ماتش في الحارة', d: 'ماتش شارع بروح الصحاب', f: () => buildDemoFootball(), c: ['مصر', 'بهجة'], g: ['#3ac26a', '#1a4a2a'] },
+  { e: '🏍️', n: 'مطاردة الموتوسيكل', d: 'سرعة وعوادم وكاميرا متحركة', f: () => buildDemoMoto(), c: ['أكشن'], g: ['#e24a2a', '#2a1a1a'] },
+  { e: '🚨', n: 'سرقة المتحف', d: 'تسلل ليلي وأضواء كاشفة', f: () => buildDemoHeist(), c: ['أكشن', 'ليل'], g: ['#6a3ad6', '#0a0a1a'] },
+  { e: '🌊', n: 'أعماق البحر', d: 'غواصة وفقاعات وكائنات بحرية', f: () => buildDemoUnder(), c: ['خيال'], g: ['#2aa8d6', '#0a3a5a'] },
+  { e: '🚀', n: 'رحلة إلى القمر', d: 'رحلة فضائية بلا جاذبية', f: () => buildDemoSpace(), c: ['خيال', 'ليل'], g: ['#4a4a8a', '#05051a'] },
+  { e: '🌇', n: 'غروب الكورنيش', d: 'مشي هادي على الكورنيش', f: () => buildDemoCorniche(), c: ['مصر', 'دراما'], g: ['#f0a060', '#5a2a3a'] },
+  { e: '🌙', n: 'ليلة رمضان في الحارة', d: 'فوانيس ومسحراتي وتوك توك', f: () => buildDemoRamadan(), c: ['مصر', 'ليل', 'بهجة'], g: ['#c98a2a', '#1a1030'] },
+  { e: '🎓', n: 'حفل التخرج', d: 'تكريم واحتفال وقبعات', f: () => buildDemoGrad(), c: ['بهجة', 'ليل'], g: ['#7a2ad6', '#1a1a2a'] },
+  { e: '🕌', n: 'مولد الحي', d: 'أنوار وزحمة ومرور سريع بالكاميرا', f: () => buildDemoMoulid(), c: ['مصر', 'ليل', 'بهجة'], g: ['#ff9ad0', '#1c1030'] },
+  { e: '⛲', n: 'ميدان المدينة', d: 'نافورة وأتوبيس وصباح جديد', f: () => buildDemoSquare(), c: ['مصر', 'بهجة'], g: ['#7fb8e8', '#9a9488'] },
+];
+function openGallery() {
+  let m = document.getElementById('gallery-modal');
+  if (m) m.remove();
+  m = document.createElement('div'); m.id = 'gallery-modal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(5,6,18,.92);display:flex;flex-direction:column;align-items:center;padding:14px;overflow:auto;direction:rtl;font-family:inherit;color:#fff';
+  const cats = ['الكل', 'مصر', 'أكشن', 'ليل', 'بهجة', 'خيال', 'دراما'];
+  m.innerHTML = '<div style="width:min(1100px,100%);display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><b style="font-size:20px">🎬 معرض القوالب (' + GALLERY.length + ')</b><button id="gal-close" style="background:#2a2f4a;color:#fff;border:0;border-radius:10px;padding:8px 16px;font-size:15px;cursor:pointer">إغلاق ✕</button></div>' +
+    '<div id="gal-chips" style="width:min(1100px,100%);display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>' +
+    '<div id="gal-grid" style="width:min(1100px,100%);display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px"></div>';
+  document.body.appendChild(m);
+  const chips = m.querySelector('#gal-chips'), grid = m.querySelector('#gal-grid');
+  let cur = 'الكل';
+  const draw = () => {
+    chips.innerHTML = ''; grid.innerHTML = '';
+    cats.forEach(c => { const b = document.createElement('button'); b.textContent = c; b.style.cssText = 'border:0;border-radius:99px;padding:6px 14px;cursor:pointer;font-size:14px;color:#fff;background:' + (c === cur ? '#f2a32a' : '#2a2f4a') + (c === cur ? ';color:#1a1a1a;font-weight:bold' : ''); b.onclick = () => { cur = c; draw(); }; chips.appendChild(b); });
+    GALLERY.filter(t => cur === 'الكل' || t.c.includes(cur)).forEach(t => {
+      const card = document.createElement('button');
+      card.style.cssText = 'text-align:right;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:0;cursor:pointer;overflow:hidden;background:#12162c;color:#fff;font-family:inherit;transition:transform .15s';
+      card.onmouseenter = () => card.style.transform = 'translateY(-3px)'; card.onmouseleave = () => card.style.transform = '';
+      card.innerHTML = '<div style="height:96px;display:flex;align-items:center;justify-content:center;font-size:46px;background:linear-gradient(160deg,' + t.g[0] + ',' + t.g[1] + ')">' + t.e + '</div><div style="padding:10px 12px"><div style="font-weight:bold;font-size:16px">' + t.n + '</div><div style="font-size:13px;opacity:.75;margin:3px 0 6px">' + t.d + '</div><div style="font-size:12px;color:#f2c76a">' + t.c.join(' · ') + '</div></div>';
+      card.onclick = () => { m.remove(); t.f(); refreshAfterLoad(); overlay(false); toast('مشهد: ' + t.n + ' ▶'); };
+      grid.appendChild(card);
+    });
+    const r = document.createElement('button');
+    r.style.cssText = 'border:2px dashed #f2a32a;border-radius:16px;padding:20px;cursor:pointer;background:transparent;color:#f2c76a;font-family:inherit;font-size:17px;font-weight:bold';
+    r.innerHTML = '🎲<br>مفاجأة! قالب عشوائي';
+    r.onclick = () => {
+      m.remove(); const t = GALLERY[Math.floor(Math.random() * GALLERY.length)]; t.f();
       if (Math.random() < 0.5) { const k = ATMOS[Math.floor(Math.random() * ATMOS.length)]; applyAtmos(k[0]); }
-      const tr = ['dust', 'smoke', 'spark', 'none'][Math.floor(Math.random() * 4)]; S.trails = tr;
+      S.trails = ['dust', 'smoke', 'spark', 'none'][Math.floor(Math.random() * 4)];
       refreshAfterLoad(); overlay(false); toast('🎲 مفاجأة: ' + S.title + ' ▶');
-    } },
-    { t: '⛲ ميدان المدينة', fn: () => { buildDemoSquare(); refreshAfterLoad(); overlay(false); toast('مشهد: ميدان المدينة ▶'); } },
-    { t: '🕌 مولد الحي', fn: () => { buildDemoMoulid(); refreshAfterLoad(); overlay(false); toast('مشهد: مولد الحي ▶'); } },
-    { t: '🎓 حفل التخرج', fn: () => { buildDemoGrad(); refreshAfterLoad(); overlay(false); toast('مشهد: حفل التخرج ▶'); } },
-    { t: '🌙 ليلة رمضان في الحارة', fn: () => { buildDemoRamadan(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة رمضان ▶'); } },
-    { t: '🌇 غروب الكورنيش', fn: () => { buildDemoCorniche(); refreshAfterLoad(); overlay(false); toast('مشهد: غروب الكورنيش ▶'); } },
-    { t: 'إلغاء', fn: () => overlay(false) },
-  ]);
-};
+    };
+    grid.appendChild(r);
+  };
+  draw();
+  m.querySelector('#gal-close').onclick = () => m.remove();
+  m.addEventListener('keydown', e => { if (e.key === 'Escape') m.remove(); });
+}
+document.getElementById('btn-demo').onclick = openGallery;
 
 // أزرار التراجع/الإعادة في الشريط العلوي
 document.getElementById('btn-undo').onclick = () => undo();
