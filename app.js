@@ -447,6 +447,39 @@ export const PROP_DEFS = {
     const prop = mesh(new THREE.BoxGeometry(0.1, 1.2, 0.18), MAT(0x444a55), -2.4, 2.4, 0); prop.name = 'subprop'; g.add(prop);
     return g;
   }},
+  fountain: { name: 'نافورة', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(2.6, 2.8, 0.7, 20), MAT(0xb9b2a4, 0.8), 0, 0.35, 0));
+    g.add(mesh(new THREE.CylinderGeometry(2.3, 2.3, 0.1, 20), new THREE.MeshStandardMaterial({ color: 0x4fb8e8, roughness: 0.15, metalness: 0.3 }), 0, 0.68, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.3, 0.45, 1.8, 10), MAT(0xc9c2b4, 0.8), 0, 1.5, 0));
+    g.add(mesh(new THREE.CylinderGeometry(1.0, 0.4, 0.3, 14), MAT(0xc9c2b4, 0.8), 0, 2.3, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.1, 0.35, 1.1, 8), new THREE.MeshBasicMaterial({ color: 0xbfeaff, transparent: true, opacity: 0.6 }), 0, 3.0, 0, false));
+    return g;
+  }},
+  bench: { name: 'كنبة حديقة', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(2.2, 0.12, 0.7), MAT(0x8a5a2a, 0.8), 0, 0.55, 0));
+    g.add(mesh(new THREE.BoxGeometry(2.2, 0.55, 0.1), MAT(0x8a5a2a, 0.8), 0, 0.95, -0.32));
+    for (const x of [-0.95, 0.95]) g.add(mesh(new THREE.BoxGeometry(0.1, 0.55, 0.6), MAT(0x2a2a30, 0.5), x, 0.27, 0));
+    return g;
+  }},
+  kiosk: { name: 'كشك', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(2.4, 2.2, 2), MAT(0x2f7ac2, 0.6), 0, 1.1, 0));
+    g.add(mesh(new THREE.BoxGeometry(2.9, 0.25, 2.5), MAT(0xf2c230, 0.6), 0, 2.35, 0.1));
+    g.add(mesh(new THREE.BoxGeometry(1.6, 0.9, 0.08), new THREE.MeshBasicMaterial({ color: 0xffe9a8 }), 0, 1.35, 1.02, false));
+    g.add(mesh(new THREE.BoxGeometry(2.0, 0.12, 0.5), MAT(0x5a3a1a, 0.7), 0, 0.95, 1.2));
+    return g;
+  }},
+  bus: { name: 'أتوبيس', make() {
+    const g = new THREE.Group();
+    for (const [x, z] of [[-1.1, 2.4], [1.1, 2.4], [-1.1, -2.4], [1.1, -2.4]]) { const w = mesh(new THREE.TorusGeometry(0.5, 0.2, 8, 14), MAT(0x1a1c22), x, 0.55, z); w.rotation.y = Math.PI / 2; w.name = 'wheel'; g.add(w); }
+    g.add(mesh(new THREE.BoxGeometry(2.4, 2.4, 8), MAT(0xf2a32a, 0.5), 0, 1.7, 0));
+    g.add(mesh(new THREE.BoxGeometry(2.45, 0.8, 7.2), new THREE.MeshStandardMaterial({ color: 0x8ad0f0, roughness: 0.2, metalness: 0.5 }), 0, 2.2, -0.2));
+    g.add(mesh(new THREE.BoxGeometry(2.45, 0.2, 8.05), MAT(0xffffff, 0.5), 0, 1.3, 0));
+    for (const x of [-0.8, 0.8]) g.add(mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), x, 1.0, 4.0, false));
+    return g;
+  }},
   tuktuk: { name: 'توك توك', make() {
     const g = new THREE.Group();
     const w1 = mesh(new THREE.TorusGeometry(0.34, 0.12, 8, 14), MAT(0x1a1c22), 0, 0.45, 1.1); w1.rotation.y = Math.PI / 2; w1.name = 'wheel';
@@ -2890,6 +2923,55 @@ function buildDemoMoulid() {
   seek(0); applySun();
 }
 
+function buildDemoSquare() {
+  clearAll();
+  S.filmDur = 26; S.title = 'ميدان المدينة';
+  S.groundColor = 0x9a9488; S.skyColor = 0x7fb8e8; S.fogFar = 180; S.grade = 0; applyGround();
+  addProp('fountain', 0, -4, 1.3);
+  addProp('bench', -9, -2, 1.1); addProp('bench', 9, -2, 1.1); addProp('bench', -6, -9, 1.1); addProp('bench', 6, -9, 1.1);
+  addProp('kiosk', 16, -8, 1.1); addProp('kiosk', -17, -8, 1.1);
+  for (let i = 0; i < 6; i++) addProp('streetlamp', -20 + i * 8, 8, 1);
+  addProp('palm', -13, -14, 1.2); addProp('palm', 13, -14, 1.2); addProp('palm', 0, -16, 1.4);
+  addProp('house', -24, -24, 1.8); addProp('house', 0, -30, 2.1); addProp('house', 24, -24, 1.7);
+  addProp('bus', -40, 14, 1); addProp('car', 40, 11, 1);
+  const bus = S.objects.find(o => o.propType === 'bus');
+  const car = S.objects.find(o => o.propType === 'car');
+  const a = addCharacter('سارة', { shirt: 0xd6502a, pants: 0x2c2f45, skin: 0xe8b88a, hair: 0x2a1810 }, -9, 0.5);
+  const b = addCharacter('مازن', { shirt: 0x2a7bd6, pants: 0x3a3550, skin: 0xd9a06a, hair: 0x1a1a1a }, 4, 3);
+  const c = addCharacter('بائع الكشك', { shirt: 0x3a9a5a, pants: 0x4a4030, skin: 0xb8804a, hair: 0x333333 }, 16, -5.5);
+  bus.track.actions.push({ type: 'walk', t0: 1, t1: 8, fx: -40, fz: 14, tx: 40, tz: 14 });
+  car.track.actions.push({ type: 'walk', t0: 9, t1: 15, fx: 40, fz: 11, tx: -40, tz: 11 });
+  a.track.actions.push({ type: 'walk', t0: 1, t1: 8, fx: -9, fz: 0.5, tx: 4, tz: 5 });
+  a.track.actions.push({ type: 'gesture', name: 'wave', time: 8.5, dur: 2.5 });
+  a.track.actions.push({ type: 'gesture', name: 'jump', time: 17, dur: 2 });
+  b.track.actions.push({ type: 'gesture', name: 'wave', time: 10, dur: 2.5 });
+  b.track.actions.push({ type: 'gesture', name: 'dance', time: 17, dur: 6 });
+  c.track.actions.push({ type: 'gesture', name: 'point', time: 12, dur: 2.5 });
+  [bus, car, a, b, c].forEach(pinWalks);
+  addCrowd(6, 0, 4);
+  const sh1 = addShot('الميدان', 0, 9); sh1.transition = 'fade';
+  shotKey(sh1, 0, [0, 14, 30], [0, 1, -4], 55, null);
+  shotKey(sh1, 9, [-10, 3, 20], [0, 2, 2], 46, a.id);
+  const sh2 = addShot('الأتوبيس', 9, 17); sh2.transition = 'cut';
+  applyCamPreset(sh2, 'driveby', [0, 0, 11], car.id);
+  const sh3 = addShot('اللقاء', 17, 26); sh3.transition = 'fade';
+  applyCamPreset(sh3, 'orbit', [0, 0, -2], null);
+  S.music.mood = 'happy';
+  S.sfx = [ { id: genId(), time: 1, type: 'whoosh' }, { id: genId(), time: 9.5, type: 'whoosh' }, { id: genId(), time: 17, type: 'magic' } ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'ميدان المدينة', style: 'card', color: '#ffffff' },
+    { id: genId(), time: 20, dur: 4, text: 'يوم جديد ☀️', style: 'title', color: '#fff3c0' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: a.id, time: 8.6, dur: 2.4, text: 'صباح الخير يا مازن!' },
+    { id: genId(), objId: b.id, time: 10.6, dur: 2.4, text: 'صباح النور يا سارة' },
+    { id: genId(), objId: c.id, time: 12.2, dur: 2.2, text: 'عصير بارد؟' },
+  ];
+  S.trails = 'none'; S.weather = 'none'; setWeather('none');
+  S.sun.tod = 0.4; S.sun.intensity = 1.6; S.ambient = 1.0;
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -2976,6 +3058,7 @@ document.getElementById('btn-demo').onclick = () => {
       const tr = ['dust', 'smoke', 'spark', 'none'][Math.floor(Math.random() * 4)]; S.trails = tr;
       refreshAfterLoad(); overlay(false); toast('🎲 مفاجأة: ' + S.title + ' ▶');
     } },
+    { t: '⛲ ميدان المدينة', fn: () => { buildDemoSquare(); refreshAfterLoad(); overlay(false); toast('مشهد: ميدان المدينة ▶'); } },
     { t: '🕌 مولد الحي', fn: () => { buildDemoMoulid(); refreshAfterLoad(); overlay(false); toast('مشهد: مولد الحي ▶'); } },
     { t: '🎓 حفل التخرج', fn: () => { buildDemoGrad(); refreshAfterLoad(); overlay(false); toast('مشهد: حفل التخرج ▶'); } },
     { t: '🌙 ليلة رمضان في الحارة', fn: () => { buildDemoRamadan(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة رمضان ▶'); } },
