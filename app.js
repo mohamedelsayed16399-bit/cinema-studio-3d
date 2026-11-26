@@ -1301,6 +1301,7 @@ function renderSceneTab() {
       <button class="chip-btn" data-preset="طالبة|#d43a6a|#2c2f45|#e8b88a">👩‍🎓 طالبة</button>
       <button class="chip-btn" data-preset="عسكري|#8a2020|#3a2a1a|#c98f5e">💂 حارس</button></div>
     <button class="chip-btn sel" id="nc-add" style="width:100%">إضافة الممثل للمشهد 🎭</button>
+    <button class="chip-btn" id="crowd-add" style="width:100%;margin-top:6px">👥 أضف جمهور متحمّس (٨ أشخاص)</button>
   </div>
   <div class="sec"><h4>🏺 إضافة ديكور</h4><div class="grid2" id="prop-grid">`;
   for (const [k, d] of Object.entries(PROP_DEFS)) html += `<button class="chip-btn" data-prop="${k}">${d.name}</button>`;
@@ -1355,6 +1356,10 @@ function renderSceneTab() {
       skin: parseInt(document.getElementById('nc-skin').value.slice(1), 16),
     }, (Math.random() * 10 - 5), (Math.random() * 10 - 5));
     select(o.id); toast('انضم ممثل جديد 🎭');
+  };
+  document.getElementById('crowd-add').onclick = () => {
+    const n = addCrowd(8, controls.target.x, controls.target.z);
+    toast('انضم جمهور من ' + n + ' أشخاص 👥'); renderPanel(); drawTimeline();
   };
   document.getElementById('nametags-tg').onchange = e => {
     S.nameTags = e.target.checked;
@@ -2028,6 +2033,27 @@ export function setWeather(type) {
   weatherPts = new THREE.Points(geo, mat);
   weatherPts.frustumCulled = false;
   scene.add(weatherPts);
+}
+
+export function addCrowd(n, cx, cz) {
+  const shirts = [0xd64a4a, 0x2a7bd6, 0x3ac26a, 0xf2c230, 0x9a5ad6, 0xeeeeee, 0xe8872a, 0x2ab0b0];
+  const skins = [0xe8b88a, 0xd9a06a, 0xc98f5e, 0xb8804a];
+  const gs = ['cheer', 'clap', 'wave', 'jump'];
+  const R = 9 + Math.random() * 2;
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    const a = Math.PI * (0.15 + 0.7 * (i / Math.max(1, n - 1))) + Math.PI;
+    const x = cx + Math.cos(a) * R, z = cz + Math.sin(a) * R * 0.6 - 2;
+    const o = addCharacter('جمهور ' + (i + 1), { shirt: shirts[i % shirts.length], pants: 0x2c2f45, skin: skins[i % skins.length], hair: 0x1a1a1a }, x, z);
+    o.track.keys[0].ry = Math.atan2(cx - x, cz - z);
+    let t = 0.5 + Math.random() * 2;
+    while (t < S.filmDur - 2) {
+      o.track.actions.push({ type: 'gesture', name: gs[Math.floor(Math.random() * gs.length)], time: +t.toFixed(1), dur: 2 });
+      t += 3 + Math.random() * 3;
+    }
+    count++;
+  }
+  return count;
 }
 
 // ---------- مؤثرات خلف المتحركين (غبار / دخان / شرر) ----------
