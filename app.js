@@ -31,8 +31,8 @@ const GradeShader = {
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
       vec3 col = c.rgb;
-      if (uMode == 1) col = vec3(dot(col, vec3(.393,.769,.189)), dot(col, vec3(.349,.686,.168)), dot(col, vec3(.272,.534,.131)));
-      else if (uMode == 2) { float g = dot(col, vec3(.299,.587,.114)); col = vec3(g) * 1.15; }
+      if (uMode == 1) col = vec3(dot(col, vec3(.393,.769,.189)), dot(col, vec3(.349,.686,.168)), dot(col, vec3(.272,.534,.131))) * 0.9;
+      else if (uMode == 2) { float g = dot(col, vec3(.299,.587,.114)); col = vec3(g * g * 0.4 + g * 0.75); }
       else if (uMode == 3) { float g = dot(col, vec3(.299,.587,.114)); col = clamp(mix(vec3(g), col, 1.65), 0., 1.) * 1.04; }
       else if (uMode == 4) col *= vec3(1.14, 1.0, 0.82);
       gl_FragColor = vec4(col, c.a);
@@ -969,15 +969,53 @@ export function drawTimeline() {
   tlctx.beginPath(); tlctx.moveTo(x(S.time), 0); tlctx.lineTo(x(S.time), h); tlctx.stroke();
   tlctx.lineWidth = 1;
 }
-let scrubbing = false;
+let scrubbing = false, dragMark = null;
 function scrubTo(e) {
   const r = tlc.getBoundingClientRect();
   const t = Math.max(0, Math.min(S.filmDur, ((e.clientX - r.left) / r.width) * S.filmDur));
   seek(t);
 }
-tlc.addEventListener('pointerdown', e => { scrubbing = true; scrubTo(e); });
-addEventListener('pointermove', e => { if (scrubbing) scrubTo(e); });
-addEventListener('pointerup', () => scrubbing = false);
+function hitMark(e) {
+  const r = tlc.getBoundingClientRect();
+  const w = r.width, h = r.height;
+  const x = t => (t / S.filmDur) * w;
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  for (const s of S.sfx) if (Math.abs(x(s.time) - mx) < 7 && Math.abs(my - (h - 10)) < 9) return { kind: 'sfx', ref: s };
+  const sel = getObj(S.selected);
+  if (sel) {
+    for (const a of sel.track.actions) {
+      if (a.type !== 'walk' && Math.abs(x(a.time) - mx) < 7 && my > 64 && my < 80) return { kind: 'act', ref: a };
+      if (a.type === 'walk' && Math.abs(x(a.t0) - mx) < 7 && my > 64 && my < 80) return { kind: 'walk0', ref: a };
+      if (a.type === 'walk' && Math.abs(x(a.t1) - mx) < 7 && my > 64 && my < 80) return { kind: 'walk1', ref: a };
+    }
+    for (const k of sel.track.keys) if (Math.abs(x(k.t) - mx) < 7 && my > 54 && my < 68) return { kind: 'key', ref: k, o: sel };
+  }
+  for (const sh of S.shots) for (const k of sh.keys) if (Math.abs(x(k.t) - mx) < 7 && Math.abs(my - 46) < 8) return { kind: 'camkey', ref: k, sh };
+  return null;
+}
+tlc.addEventListener('pointerdown', e => {
+  if (!S.playing) { dragMark = hitMark(e); if (dragMark) return; }
+  scrubbing = true; scrubTo(e);
+});
+addEventListener('pointermove', e => {
+  if (dragMark) {
+    const r = tlc.getBoundingClientRect();
+    const t = Math.max(0, Math.min(S.filmDur, Math.round(((e.clientX - r.left) / r.width) * S.filmDur * 10) / 10));
+    const m = dragMark;
+    if (m.kind === 'sfx' || m.kind === 'act') m.ref.time = t;
+    else if (m.kind === 'walk0') m.ref.t0 = Math.min(t, m.ref.t1 - 0.5);
+    else if (m.kind === 'walk1') m.ref.t1 = Math.max(t, m.ref.t0 + 0.5);
+    else if (m.kind === 'key') { m.ref.t = t; m.o.track.keys.sort((a, b) => a.t - b.t); }
+    else if (m.kind === 'camkey') { m.ref.t = Math.max(m.sh.t0, Math.min(m.sh.t1, t)); m.sh.keys.sort((a, b) => a.t - b.t); }
+    drawTimeline();
+    return;
+  }
+  if (scrubbing) scrubTo(e);
+});
+addEventListener('pointerup', () => {
+  if (dragMark) { dragMark = null; renderPanel(); saveLocal(); toast('تم تحريك العلامة ✋'); }
+  scrubbing = false;
+});
 
 // ---------- واجهة اللوحات ----------
 const panelBody = document.getElementById('panel-body');
@@ -2151,4 +2189,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-}
+              }
