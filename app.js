@@ -715,7 +715,7 @@ export function serialize() {
     })),
     shots: S.shots, sfx: S.sfx,
     spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
-    bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0,
+    bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0, nameTags: !!S.nameTags,
   });
 }
 export function deserialize(json) {
@@ -739,6 +739,7 @@ export function deserialize(json) {
   S.bubbles = d.bubbles || [];
   S.slowmo = d.slowmo || false;
   S.grade = d.grade || 0;
+  S.nameTags = d.nameTags || false;
   const slBtn = document.getElementById('tl-slow'); if (slBtn) slBtn.classList.toggle('sel', S.slowmo);
   clearBubbleSprites();
   setWeather(d.weather || 'none');
@@ -813,6 +814,7 @@ function animate(now) {
     if (S.time >= S.filmDur) { pause(); if (onFilmEnd) onFilmEnd(); }
   }
   updateBubbles(S.time);
+  updateNameTags();
   updateWeatherFX(S.time, dt);
   if (S.playing) {
     const sh = activeShot(S.time);
@@ -1058,6 +1060,7 @@ function renderSceneTab() {
   const sel = getObj(S.selected);
   let html = `
   <div class="sec"><h4>➕ إضافة ممثل</h4>
+    <div class="row"><label>أسماء فوق الرؤوس</label><input type="checkbox" id="nametags-tg" style="width:18px;height:18px;accent-color:var(--accent)" ${S.nameTags ? 'checked' : ''}></div>
     <div class="row"><label>الاسم</label><input type="text" id="nc-name" placeholder="بطل الفيلم"></div>
     <div class="row"><label>القميص</label><input type="color" id="nc-shirt" value="#3a6bd6">
     <label>البنطلون</label><input type="color" id="nc-pants" value="#2c2f45">
@@ -1122,6 +1125,10 @@ function renderSceneTab() {
       skin: parseInt(document.getElementById('nc-skin').value.slice(1), 16),
     }, (Math.random() * 10 - 5), (Math.random() * 10 - 5));
     select(o.id); toast('انضم ممثل جديد 🎭');
+  };
+  document.getElementById('nametags-tg').onchange = e => {
+    S.nameTags = e.target.checked;
+    toast(S.nameTags ? 'الأسماء ظاهرة فوق الممثلين 🏷️' : 'الأسماء مخفية'); saveLocal();
   };
   panelBody.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
     const [n, sh, pa, sk] = b.dataset.preset.split('|');
@@ -1203,6 +1210,7 @@ function renderShotsTab() {
   </div>`;
   S.shots.forEach((sh, i) => {
     html += `<div class="sec"><h4 style="color:${SHOT_COLORS[i % 6]}">${esc(sh.name)} <span class="mini" data-del-shot="${sh.id}">حذف ✕</span></h4>
+      <div class="row"><label>الاسم</label><input type="text" data-shot-rename="${sh.id}" value="${esc(sh.name)}"></div>
       <div class="row"><label>من</label><input type="number" id="sh-t0-${sh.id}" value="${sh.t0}" step="0.5" style="width:64px;flex:none">
       <label>إلى</label><input type="number" id="sh-t1-${sh.id}" value="${sh.t1}" step="0.5" style="width:64px;flex:none">
       <label>عدسة</label><input type="number" id="sh-fov-${sh.id}" value="50" step="1" style="width:56px;flex:none"></div>
@@ -1260,6 +1268,12 @@ function renderShotsTab() {
   panelBody.querySelectorAll('[data-shot-shake]').forEach(el => el.onchange = () => {
     const sh = S.shots.find(s => s.id === el.dataset.shotShake);
     sh.shake = el.value ? +el.value : null; toast('هزة الكاميرا: ' + (sh.shake ? (sh.shake === 1 ? 'قوية 📳' : 'خفيفة') : 'بدون')); saveLocal();
+  });
+  panelBody.querySelectorAll('[data-shot-rename]').forEach(el => el.onchange = () => {
+    const sh = S.shots.find(s => s.id === el.dataset.shotRename);
+    const nm = el.value.trim();
+    if (!nm || nm === sh.name) { el.value = sh.name; return; }
+    sh.name = nm; toast('تمت إعادة التسمية ✏️'); saveLocal(); renderPanel(); drawTimeline();
   });
   panelBody.querySelectorAll('[data-del-shot]').forEach(el => el.onclick = () => {
     removeShot(el.dataset.delShot); renderPanel(); drawTimeline();
@@ -2167,6 +2181,42 @@ addEventListener('pointerup', () => {
 
 // ---------- فقاعات الكلام ----------
 var bubbleSprites = new Map();
+var nameTagSprites = new Map();
+function makeNameTexture(name) {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 128;
+  const g = c.getContext('2d');
+  g.direction = 'rtl'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '900 64px Cairo, sans-serif';
+  g.lineWidth = 10; g.strokeStyle = '#000a'; g.lineJoin = 'round';
+  g.strokeText(name, 256, 64, 470);
+  g.fillStyle = '#ffd75e';
+  g.fillText(name, 256, 64, 470);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+function updateNameTags() {
+  for (const o of S.objects) {
+    let sp = nameTagSprites.get(o.id);
+    if (S.nameTags && o.kind === 'char') {
+      if (!sp || sp.userData.nm !== o.name) {
+        if (sp) { sp.parent?.remove(sp); sp.material.map.dispose(); sp.material.dispose(); }
+        sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameTexture(o.name), transparent: true, depthTest: false }));
+        sp.renderOrder = 2;
+        sp.scale.set(2.6, 0.65, 1);
+        sp.position.set(0, 3.15, 0);
+        sp.userData.nm = o.name;
+        nameTagSprites.set(o.id, sp);
+        o.group.add(sp);
+      }
+      sp.visible = true;
+    } else if (sp) sp.visible = false;
+  }
+  for (const [id, sp] of nameTagSprites) {
+    if (!getObj(id)) { sp.parent?.remove(sp); sp.material.map.dispose(); sp.material.dispose(); nameTagSprites.delete(id); }
+  }
+}
 function makeBubbleTexture(text) {
   const c = document.createElement('canvas');
   c.width = 640; c.height = 300;
