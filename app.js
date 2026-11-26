@@ -2371,6 +2371,10 @@ function renderTextsTab() {
     <label>المدة</label><input type="number" id="tx-dur" value="3" min="0.5" max="20" step="0.5" style="width:64px;flex:none"></div>
     <button class="chip-btn sel" id="tx-add" style="width:100%">＋ أضف عند ${S.time.toFixed(1)} ث</button>
   </div>
+  <div class="sec"><h4>💬 ترجمة تلقائية</h4>
+    <p style="font-size:11.5px;color:var(--muted);margin:0 0 8px">بتحوّل فقاقيع الكلام لترجمة أسفل الشاشة بإسم المتكلم، وبتتصدّر مع الفيلم. (${(S.bubbles || []).length} فقاعة)</p>
+    <button class="chip-btn sel" id="tx-autosub" style="width:100%">💬 حوّل الفقاعات لترجمة</button>
+  </div>
   <div class="sec"><h4>🎞️ تترات النهاية</h4>
     <p style="font-size:11.5px;color:var(--muted);margin:0 0 8px">تضيف تلقائيًا بعد آخر لقطة: بطاقة بالعنوان، بطولة (أسماء الممثلين)، وبطاقة ختام. تتصدّر مع الفيلم.</p>
     <button class="chip-btn sel" id="tx-credits" style="width:100%">🎬 أضف تترات النهاية تلقائيًا</button>
@@ -2392,6 +2396,17 @@ function renderTextsTab() {
       dur: Math.max(0.5, parseFloat(document.getElementById('tx-dur').value) || 3),
     });
     toast('نص مضاف @ ' + S.time.toFixed(1) + ' ث 📝');
+    renderPanel(); drawTimeline(); saveLocal();
+  };
+  document.getElementById('tx-autosub').onclick = () => {
+    const bs = (S.bubbles || []).filter(b => b.text);
+    if (!bs.length) return toast('مفيش فقاقيع كلام لسه، ضيف كلام من تاب المشهد');
+    S.texts = S.texts.filter(t => !t.autosub);
+    bs.forEach(b => {
+      const o = getObj(b.objId);
+      S.texts.push({ id: genId(), time: b.time, dur: b.dur, text: (o ? o.name + ': ' : '') + b.text, style: 'sub', color: '#ffffff', autosub: true });
+    });
+    toast('اتضافت ' + bs.length + ' ترجمة 💬');
     renderPanel(); drawTimeline(); saveLocal();
   };
   document.getElementById('tx-credits').onclick = () => {
