@@ -1553,9 +1553,40 @@ document.getElementById('tl-addmark').onclick = () => {
 setInterval(saveLocal, 5000);
 addEventListener('beforeunload', () => { try { localStorage.setItem(LS_KEY, serialize()); } catch (e) {} });
 
+// ---------- مشاركة الفيلم برابط ----------
+async function filmShareLink() {
+  const json = serialize();
+  const cs = new CompressionStream('deflate-raw');
+  const buf = await new Response(new Blob([json]).stream().pipeThrough(cs)).arrayBuffer();
+  const bytes = new Uint8Array(buf); let bin = '';
+  for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  return location.origin + location.pathname + '#film=' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function filmFromHash() {
+  if (!location.hash.startsWith('#film=')) return false;
+  try {
+    const b64 = location.hash.slice(6).replace(/-/g, '+').replace(/_/g, '/');
+    const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const ds = new DecompressionStream('deflate-raw');
+    const json = await new Response(new Blob([bin]).stream().pipeThrough(ds)).text();
+    deserialize(json);
+    return true;
+  } catch (e) { console.warn('hash load failed', e); return false; }
+}
+document.getElementById('btn-share').onclick = async () => {
+  toast('بيجهّز الرابط… ⏳');
+  try {
+    const url = await filmShareLink();
+    try { await navigator.clipboard.writeText(url); }
+    catch { prompt('انسخ رابط الفيلم:', url); }
+    toast(url.length > 14000 ? 'اتنسخ 🔗 بس طويل (' + url.length + ') — ممكن مايفتحش في كل المتصفحات' : 'اتنسخ رابط الفيلم 🔗 ابعته لأي حد!');
+  } catch (e) { toast('تعذر تجهيز الرابط'); }
+};
+
 // ---------- إقلاع ----------
-(function boot() {
-  const saved = localStorage.getItem(LS_KEY);
+(async function boot() {
+  const fromLink = await filmFromHash();
+  const saved = fromLink ? null : localStorage.getItem(LS_KEY);
   if (saved) {
     try {
       deserialize(saved);
@@ -1570,6 +1601,7 @@ addEventListener('beforeunload', () => { try { localStorage.setItem(LS_KEY, seri
   renderPanel(); drawTimeline(); resize();
   requestAnimationFrame(animate);
   setTimeout(() => document.getElementById('viewport-hint').style.opacity = 0, 6000);
+  if (fromLink) toast('اتحمّل فيلم من رابط مشاركة 🎬');
 })();
 
 // ================== الجولة ٢ ==================
@@ -2197,4 +2229,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-      }
+}
