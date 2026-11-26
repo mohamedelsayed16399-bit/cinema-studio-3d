@@ -1,0 +1,1223 @@
+// استوديو السينما 3D — محرك المشاهد والشخصيات
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+export const S = {
+  filmDur: 30, time: 0, playing: false,
+  objects: [],   // عناصر المشهد
+  shots: [],     // اللقطات
+  sfx: [],       // مؤثرات صوتية {id,time,type}
+  music: { mood: 'epic', on: true, volume: 0.5 },
+  sun: { tod: 0.35, intensity: 1.1 },   // time of day 0..1
+  ambient: 0.55,
+  spots: [],     // {id,color,intensity,pos:[x,y,z],target:[x,y,z]}
+  selected: null,
+  title: 'فيلمي القصير'
+};
+let nid = 1;
+export const genId = () => 'o' + (nid++);
+
+// ---------- renderer / scene ----------
+const canvas = document.getElementById('c3d');
+export const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+export const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87b5e0);
+scene.fog = new THREE.Fog(0x87b5e0, 60, 220);
+
+export const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 600);
+camera.position.set(14, 9, 16);
+export const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 1.5, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.minDistance = 2; controls.maxDistance = 120;
+
+// ---------- lights ----------
+export const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -40; sun.shadow.camera.right = 40;
+sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
+sun.shadow.camera.far = 200;
+scene.add(sun); scene.add(sun.target);
+export const hemi = new THREE.HemisphereLight(0xbfd8ff, 0x8a7a5a, S.ambient);
+scene.add(hemi);
+
+// ---------- ground & sky ----------
+const ground = new THREE.Mesh(
+  new THREE.CylinderGeometry(150, 150, 1, 48),
+  new THREE.MeshStandardMaterial({ color: 0xd9c391, roughness: 1 })
+);
+ground.position.y = -0.5; ground.receiveShadow = true;
+scene.add(ground);
+const grid = new THREE.PolarGridHelper(150, 24, 8, 64, 0x000000, 0x9a8a68);
+grid.position.y = 0.02; grid.material.opacity = 0.25; grid.material.transparent = true;
+scene.add(grid);
+
+function skyColor(tod) {
+  // 0 فجر .. 0.25 ظهر .. 0.5 غروب .. 0.75 ليل
+  const day = new THREE.Color(0x87b5e0), dusk = new THREE.Color(0xe88a4e),
+        night = new THREE.Color(0x0b1030), dawn = new THREE.Color(0xd9a0a8);
+  let c;
+  if (tod < 0.25) c = dawn.clone().lerp(day, tod / 0.25);
+  else if (tod < 0.5) c = day.clone().lerp(dusk, (tod - 0.25) / 0.25);
+  else if (tod < 0.75) c = dusk.clone().lerp(night, (tod - 0.5) / 0.25);
+  else c = night.clone().lerp(dawn, (tod - 0.75) / 0.25);
+  return c;
+}
+export function applySun() {
+  const tod = S.sun.tod;
+  const ang = tod * Math.PI * 2 - Math.PI / 2;
+  const r = 80;
+  sun.position.set(Math.cos(ang) * r, Math.max(4, Math.sin(ang) * r), 30);
+  const dayness = Math.max(0, Math.sin(ang));
+  const c = skyColor(tod);
+  scene.background = c; scene.fog.color = c;
+  sun.intensity = S.sun.intensity * (0.15 + dayness);
+  sun.color.setHSL(0.09 + 0.04 * dayness, 0.5, 0.5 + 0.4 * dayness);
+  hemi.intensity = S.ambient * (0.25 + dayness * 0.9);
+  stars.visible = tod > 0.55 && tod < 0.95;
+}
+// نجوم
+const starGeo = new THREE.BufferGeometry();
+{
+  const pts = [];
+  for (let i = 0; i < 900; i++) {
+    const a = Math.random() * Math.PI * 2, e = Math.random() * Math.PI * 0.48, r = 260;
+    pts.push(Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r + 5, Math.sin(a) * Math.cos(e) * r);
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+}
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: false, transparent: true, opacity: 0.9 }));
+scene.add(stars);
+
+// ---------- خامات ----------
+const MAT = (color, rough = 0.85) => new THREE.MeshStandardMaterial({ color, roughness: rough });
+function mesh(geo, mat, x = 0, y = 0, z = 0, shadow = true) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z); m.castShadow = shadow; m.receiveShadow = true;
+  return m;
+}
+
+// ---------- الشخصيات ----------
+export function makeCharacter(opts = {}) {
+  const skin = opts.skin ?? 0xe8b88a, shirt = opts.shirt ?? 0x3a6bd6, pants = opts.pants ?? 0x2c2f45;
+  const g = new THREE.Group();
+  const body = mesh(new THREE.CapsuleGeometry(0.42, 0.7, 6, 14), MAT(shirt), 0, 1.25, 0);
+  const head = mesh(new THREE.SphereGeometry(0.34, 20, 16), MAT(skin), 0, 2.15, 0);
+  // عيون
+  const eyeM = new THREE.MeshBasicMaterial({ color: 0x1a1a22 });
+  const e1 = mesh(new THREE.SphereGeometry(0.05, 8, 8), eyeM, -0.12, 2.2, 0.29, false);
+  const e2 = e1.clone(); e2.position.x = 0.12;
+  // شعر/غطاء رأس
+  const hair = mesh(new THREE.SphereGeometry(0.36, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), MAT(opts.hair ?? 0x2a2018), 0, 2.18, 0);
+  const armL = new THREE.Group(), armR = new THREE.Group();
+  armL.position.set(-0.52, 1.75, 0); armR.position.set(0.52, 1.75, 0);
+  const armGeo = new THREE.CapsuleGeometry(0.13, 0.62, 4, 10);
+  armL.add(mesh(armGeo, MAT(shirt), 0, -0.4, 0));
+  armR.add(mesh(armGeo, MAT(shirt), 0, -0.4, 0));
+  const legL = new THREE.Group(), legR = new THREE.Group();
+  legL.position.set(-0.2, 0.78, 0); legR.position.set(0.2, 0.78, 0);
+  const legGeo = new THREE.CapsuleGeometry(0.15, 0.6, 4, 10);
+  legL.add(mesh(legGeo, MAT(pants), 0, -0.38, 0));
+  legR.add(mesh(legGeo, MAT(pants), 0, -0.38, 0));
+  g.add(body, head, e1, e2, hair, armL, armR, legL, legR);
+  g.userData.parts = { body, head, armL, armR, legL, legR };
+  g.traverse(m => { m.userData.objRoot = g; });
+  return g;
+}
+
+// ---------- الديكور ----------
+export const PROP_DEFS = {
+  pyramid: { name: 'هرم', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.ConeGeometry(6, 7, 4), MAT(0xd8b878), 0, 3.5, 0));
+    g.children[0].rotation.y = Math.PI / 4;
+    return g;
+  }},
+  palm: { name: 'نخلة', make() {
+    const g = new THREE.Group();
+    const trunk = mesh(new THREE.CylinderGeometry(0.18, 0.3, 4.4, 8), MAT(0x8a6a42), 0, 2.2, 0);
+    trunk.rotation.z = 0.08; g.add(trunk);
+    for (let i = 0; i < 7; i++) {
+      const leaf = mesh(new THREE.ConeGeometry(0.35, 2.6, 4), MAT(0x3f8a3f), 0, 4.6, 0);
+      leaf.rotation.z = Math.PI / 2.3;
+      leaf.rotation.y = (i / 7) * Math.PI * 2;
+      leaf.position.y = 4.5;
+      leaf.translateX(1.0);
+      g.add(leaf);
+    }
+    return g;
+  }},
+  column: { name: 'عمود فرعوني', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.5, 0.62, 5, 12), MAT(0xd0b98a), 0, 2.5, 0));
+    g.add(mesh(new THREE.BoxGeometry(1.5, 0.5, 1.5), MAT(0xc4ac7c), 0, 5.2, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.4, 12), MAT(0xc4ac7c), 0, 0.2, 0));
+    return g;
+  }},
+  sphinx: { name: 'تمثال', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(3.2, 1.1, 1.2), MAT(0xd8b878), 0, 0.55, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.62, 14, 12), MAT(0xd8b878), 1.5, 1.5, 0));
+    g.add(mesh(new THREE.ConeGeometry(0.66, 0.9, 4), MAT(0xc8a868), 1.5, 2.1, 0));
+    return g;
+  }},
+  tree: { name: 'شجرة', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.22, 0.32, 1.8, 8), MAT(0x6a4a2a), 0, 0.9, 0));
+    g.add(mesh(new THREE.IcosahedronGeometry(1.4, 1), MAT(0x4a9a4a), 0, 2.6, 0));
+    return g;
+  }},
+  rock: { name: 'صخرة', make() {
+    return mesh(new THREE.DodecahedronGeometry(1, 0), MAT(0x8a8578), 0, 0.6, 0) && (() => {
+      const g = new THREE.Group();
+      const r = mesh(new THREE.DodecahedronGeometry(1, 0), MAT(0x8a8578), 0, 0.6, 0);
+      r.scale.set(1, 0.7, 0.8); g.add(r); return g;
+    })();
+  }},
+  house: { name: 'بيت', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(3.4, 2.4, 3), MAT(0xe0cfa8), 0, 1.2, 0));
+    const roof = mesh(new THREE.ConeGeometry(2.7, 1.4, 4), MAT(0xa85f3f), 0, 3.1, 0);
+    roof.rotation.y = Math.PI / 4; g.add(roof);
+    g.add(mesh(new THREE.BoxGeometry(0.8, 1.4, 0.15), MAT(0x5a3a22), 0, 0.7, 1.53));
+    return g;
+  }},
+  tent: { name: 'خيمة', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.ConeGeometry(2.2, 2.6, 6), MAT(0xb05a3c), 0, 1.3, 0));
+    return g;
+  }},
+  fire: { name: 'نار مخيم', make() {
+    const g = new THREE.Group();
+    for (let i = 0; i < 5; i++) {
+      const log = mesh(new THREE.CylinderGeometry(0.09, 0.09, 1, 6), MAT(0x4a3018), 0, 0.12, 0);
+      log.rotation.z = Math.PI / 2; log.rotation.y = i * 1.25; g.add(log);
+    }
+    const flame = mesh(new THREE.ConeGeometry(0.35, 0.9, 8),
+      new THREE.MeshBasicMaterial({ color: 0xff8a2a }), 0, 0.6, 0, false);
+    flame.name = 'flame'; g.add(flame);
+    const l = new THREE.PointLight(0xff9540, 2.2, 12, 1.6); l.position.y = 0.9; l.name = 'firelight';
+    g.add(l);
+    return g;
+  }},
+  well: { name: 'بئر', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(1, 1.1, 0.9, 12, 1, true), MAT(0x9a9078), 0, 0.45, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 6), MAT(0x6a4a2a), -0.9, 1.4, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.2, 6), MAT(0x6a4a2a), 0.9, 1.4, 0));
+    const roof = mesh(new THREE.ConeGeometry(1.5, 0.8, 4), MAT(0xa85f3f), 0, 2.8, 0);
+    roof.rotation.y = Math.PI / 4; g.add(roof);
+    return g;
+  }},
+};
+
+// ---------- إدارة العناصر ----------
+export function addCharacter(name, opts = {}, x = 0, z = 0) {
+  const group = makeCharacter(opts);
+  group.position.set(x, 0, z);
+  scene.add(group);
+  const o = {
+    id: genId(), kind: 'char', name: name || ('ممثل ' + nid),
+    colors: { skin: opts.skin ?? 0xe8b88a, shirt: opts.shirt ?? 0x3a6bd6, pants: opts.pants ?? 0x2c2f45, hair: opts.hair ?? 0x2a2018 },
+    group, track: { keys: [{ t: 0, x, y: 0, z, ry: 0 }], actions: [] }
+  };
+  S.objects.push(o);
+  return o;
+}
+export function addProp(type, x = 0, z = 0, scale = 1) {
+  const def = PROP_DEFS[type]; if (!def) return null;
+  const group = def.make();
+  group.position.set(x, 0, z);
+  group.scale.setScalar(scale);
+  group.traverse(m => { m.userData.objRoot = group; });
+  scene.add(group);
+  const o = {
+    id: genId(), kind: 'prop', propType: type, name: def.name,
+    group, scale, track: { keys: [{ t: 0, x, y: 0, z, ry: 0 }], actions: [] }
+  };
+  S.objects.push(o);
+  return o;
+}
+export function removeObject(id) {
+  const i = S.objects.findIndex(o => o.id === id);
+  if (i < 0) return;
+  scene.remove(S.objects[i].group);
+  S.objects.splice(i, 1);
+  if (S.selected === id) S.selected = null;
+}
+export const getObj = id => S.objects.find(o => o.id === id);
+
+// ---------- محرك الكي فريم ----------
+function lerp(a, b, k) { return a + (b - a) * k; }
+function smooth(k) { return k * k * (3 - 2 * k); }
+
+export function addKey(o, t, x, z, ry) {
+  const keys = o.track.keys;
+  const ex = keys.find(k => Math.abs(k.t - t) < 0.05);
+  if (ex) { ex.x = x; ex.z = z; ex.y = 0; if (ry !== undefined) ex.ry = ry; }
+  else keys.push({ t, x, y: 0, z, ry: ry ?? 0 });
+  keys.sort((a, b) => a.t - b.t);
+}
+export function sampleTrack(o, t) {
+  const keys = o.track.keys;
+  if (!keys.length) return { x: 0, y: 0, z: 0, ry: 0 };
+  if (t <= keys[0].t) return keys[0];
+  if (t >= keys[keys.length - 1].t) return keys[keys.length - 1];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const a = keys[i], b = keys[i + 1];
+    if (t >= a.t && t <= b.t) {
+      const k = smooth((t - a.t) / Math.max(0.001, b.t - a.t));
+      return { x: lerp(a.x, b.x, k), y: 0, z: lerp(a.z, b.z, k), ry: lerp(a.ry, b.ry, k) };
+    }
+  }
+  return keys[keys.length - 1];
+}
+
+// تقييم عنصر في لحظة: الكي فريم + أفعال (مشي/إيماءة)
+export function evalObject(o, t) {
+  let p = { ...sampleTrack(o, t) };
+  let walking = false, gesture = null;
+  for (const a of o.track.actions) {
+    if (a.type === 'walk' && t >= a.t0 && t <= a.t1) {
+      const k = smooth((t - a.t0) / Math.max(0.001, a.t1 - a.t0));
+      p = { x: lerp(a.fx, a.tx, k), y: 0, z: lerp(a.fz, a.tz, k), ry: Math.atan2(a.tx - a.fx, a.tz - a.fz) };
+      walking = true;
+    } else if (a.type === 'gesture' && t >= a.time && t <= a.time + a.dur) {
+      gesture = { name: a.name, k: (t - a.time) / a.dur };
+    }
+  }
+  return { p, walking, gesture };
+}
+
+function poseCharacter(o, t) {
+  const { p, walking, gesture } = evalObject(o, t);
+  const g = o.group, parts = g.userData.parts;
+  g.position.set(p.x, p.y, p.z);
+  g.rotation.y = p.ry || 0;
+  const ph = t * 7;
+  if (walking) {
+    parts.legL.rotation.x = Math.sin(ph) * 0.7;
+    parts.legR.rotation.x = -Math.sin(ph) * 0.7;
+    parts.armL.rotation.x = -Math.sin(ph) * 0.5;
+    parts.armR.rotation.x = Math.sin(ph) * 0.5;
+    parts.body.position.y = 1.25 + Math.abs(Math.sin(ph)) * 0.05;
+  } else {
+    parts.legL.rotation.x *= 0.8; parts.legR.rotation.x *= 0.8;
+    parts.armL.rotation.x *= 0.8;
+    if (!gesture) parts.armR.rotation.x *= 0.8;
+    parts.body.position.y = 1.25;
+  }
+  if (gesture) {
+    const k = gesture.k, env = Math.sin(Math.min(1, k) * Math.PI);
+    if (gesture.name === 'wave') {
+      parts.armR.rotation.x = 0; parts.armR.rotation.z = Math.PI * 0.85;
+      parts.armR.rotation.y = Math.sin(k * 18) * 0.5 * env;
+    } else if (gesture.name === 'jump') {
+      g.position.y = Math.sin(k * Math.PI) * 1.2;
+      parts.armL.rotation.z = -env * 2.4; parts.armR.rotation.z = env * 2.4;
+    } else if (gesture.name === 'sit') {
+      parts.legL.rotation.x = -Math.PI / 2 * env; parts.legR.rotation.x = -Math.PI / 2 * env;
+      g.position.y -= 0.45 * env;
+    } else if (gesture.name === 'bow') {
+      parts.body.rotation.x = env * 0.8; parts.head.rotation.x = env * 0.5;
+      if (k >= 1) { parts.body.rotation.x = 0; parts.head.rotation.x = 0; }
+    } else if (gesture.name === 'point') {
+      parts.armR.rotation.x = -Math.PI / 2 * env;
+    } else if (gesture.name === 'clap') {
+      parts.armL.rotation.x = -Math.PI / 2.4; parts.armR.rotation.x = -Math.PI / 2.4;
+      parts.armL.rotation.y = Math.sin(k * 20) * 0.4 * env;
+      parts.armR.rotation.y = -Math.sin(k * 20) * 0.4 * env;
+    }
+  } else {
+    parts.armR.rotation.z *= 0.8; parts.armL.rotation.z *= 0.8;
+    parts.body.rotation.x *= 0.7; parts.head.rotation.x *= 0.7;
+  }
+}
+
+export const GESTURES = [
+  ['wave', '👋 يلوّح'], ['jump', '🦘 يقفز'], ['sit', '🪑 يجلس'],
+  ['bow', '🙇 ينحني'], ['point', '👉 يشير'], ['clap', '👏 يصفّق']
+];
+
+// ---------- اللقطات ----------
+export function addShot(name, t0, t1) {
+  const sh = { id: genId(), name: name || ('لقطة ' + (S.shots.length + 1)), t0, t1, keys: [] };
+  S.shots.push(sh);
+  S.shots.sort((a, b) => a.t0 - b.t0);
+  return sh;
+}
+export function removeShot(id) {
+  S.shots = S.shots.filter(s => s.id !== id);
+}
+export function shotKey(sh, t, pos, look, fov) {
+  const ex = sh.keys.find(k => Math.abs(k.t - t) < 0.05);
+  const key = { t, pos: [...pos], look: [...look], fov };
+  if (ex) Object.assign(ex, key); else sh.keys.push(key);
+  sh.keys.sort((a, b) => a.t - b.t);
+}
+export function activeShot(t) {
+  if (!S.shots.length) return null;
+  return S.shots.find(s => t >= s.t0 && t < s.t1) || S.shots[S.shots.length - 1];
+}
+function sampleShotCam(sh, t) {
+  const keys = sh.keys;
+  if (!keys.length) return null;
+  if (t <= keys[0].t) return keys[0];
+  if (t >= keys[keys.length - 1].t) return keys[keys.length - 1];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const a = keys[i], b = keys[i + 1];
+    if (t >= a.t && t <= b.t) {
+      const k = smooth((t - a.t) / Math.max(0.001, b.t - a.t));
+      return {
+        pos: [lerp(a.pos[0], b.pos[0], k), lerp(a.pos[1], b.pos[1], k), lerp(a.pos[2], b.pos[2], k)],
+        look: [lerp(a.look[0], b.look[0], k), lerp(a.look[1], b.look[1], k), lerp(a.look[2], b.look[2], k)],
+        fov: lerp(a.fov, b.fov, k)
+      };
+    }
+  }
+  return keys[keys.length - 1];
+}
+
+// ---------- الصوت ----------
+export const audio = {
+  ctx: null, master: null, musicGain: null, sfxGain: null, dest: null,
+  schedTimer: null, nextNoteT: 0, step: 0,
+};
+export function ensureAudio() {
+  if (audio.ctx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  audio.ctx = new AC();
+  audio.master = audio.ctx.createGain();
+  audio.master.gain.value = 1;
+  audio.master.connect(audio.ctx.destination);
+  audio.dest = audio.ctx.createMediaStreamDestination();
+  audio.master.connect(audio.dest);
+  audio.musicGain = audio.ctx.createGain();
+  audio.musicGain.gain.value = S.music.volume * 0.5;
+  audio.musicGain.connect(audio.master);
+  audio.sfxGain = audio.ctx.createGain();
+  audio.sfxGain.gain.value = 0.9;
+  audio.sfxGain.connect(audio.master);
+}
+export function applyVolume() {
+  if (audio.musicGain) audio.musicGain.gain.value = S.music.volume * 0.5;
+}
+
+const MOODS = {
+  epic:   { name: 'ملحمي 🥁',  root: 146.83, scale: [0, 2, 3, 5, 7, 8, 10], bpm: 96,  wave: 'sawtooth', bass: true, drums: true },
+  calm:   { name: 'هادئ 🌊',   root: 220,    scale: [0, 2, 4, 7, 9],        bpm: 70,  wave: 'sine',     bass: false, drums: false },
+  tension:{ name: 'تشويق ⚡',  root: 110,    scale: [0, 1, 3, 5, 6, 8, 10], bpm: 120, wave: 'square',   bass: true, drums: true },
+  happy:  { name: 'مبهج 🌞',   root: 261.63, scale: [0, 2, 4, 5, 7, 9, 11], bpm: 110, wave: 'triangle', bass: true, drums: true },
+  oriental:{name: 'شرقي 🪕',   root: 196,    scale: [0, 1, 4, 5, 7, 8, 11], bpm: 100, wave: 'sawtooth', bass: true, drums: true },
+};
+export const MOOD_KEYS = Object.keys(MOODS);
+export const moodName = k => MOODS[k]?.name || k;
+
+function note(ctx, dest, freq, t, dur, wave, vol = 0.15) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = wave; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(dest);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function drum(ctx, dest, t, type) {
+  if (type === 'kick') {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    o.connect(g); g.connect(dest); o.start(t); o.stop(t + 0.2);
+  } else {
+    const len = 0.06, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = type === 'hat' ? 7000 : 1800;
+    const g = ctx.createGain(); g.gain.value = type === 'hat' ? 0.12 : 0.25;
+    src.connect(f); f.connect(g); g.connect(dest); src.start(t);
+  }
+}
+export function startMusic(filmOffset = 0) {
+  ensureAudio();
+  stopMusic();
+  const mood = MOODS[S.music.mood]; if (!mood || !S.music.on) return;
+  const spb = 60 / mood.bpm / 2; // نصف نبضة
+  audio.step = Math.floor(filmOffset / spb);
+  audio.nextNoteT = audio.ctx.currentTime + 0.06;
+  audio.musicT0 = audio.nextNoteT - (filmOffset % spb);
+  audio.spb = spb;
+  audio.schedTimer = setInterval(() => {
+    const ctx = audio.ctx, m = MOODS[S.music.mood];
+    while (audio.nextNoteT < ctx.currentTime + 0.35) {
+      const t = audio.nextNoteT, st = audio.step;
+      const deg = [0, 4, 7, 4, 5, 4, 7, 9][Math.floor(st / 4) % 8] + m.scale[(st * 7) % m.scale.length];
+      const f = m.root * Math.pow(2, deg / 12);
+      if (st % 2 === 0) note(ctx, audio.musicGain, f * 2, t, 0.22, m.wave, 0.055);
+      if (m.bass && st % 4 === 0) note(ctx, audio.musicGain, m.root / 2, t, spb * 3.5, 'triangle', 0.16);
+      if (m.drums) {
+        if (st % 4 === 0) drum(ctx, audio.musicGain, t, 'kick');
+        if (st % 4 === 2) drum(ctx, audio.musicGain, t, 'snare');
+        drum(ctx, audio.musicGain, t, 'hat');
+      }
+      audio.nextNoteT += spb; audio.step++;
+    }
+  }, 120);
+}
+export function stopMusic() {
+  if (audio.schedTimer) { clearInterval(audio.schedTimer); audio.schedTimer = null; }
+}
+
+export const SFX_DEFS = {
+  whoosh:  { name: '💨 سووش' }, boom: { name: '💥 انفجار' }, chirp: { name: '🐦 عصافير' },
+  steps:   { name: '👣 خطوات' }, wind: { name: '🌬️ رياح' }, bell: { name: '🔔 جرس' },
+  magic:   { name: '✨ سحر' }, crowd: { name: '👥 جمهور' },
+};
+export function playSfx(type) {
+  ensureAudio();
+  const ctx = audio.ctx, t = ctx.currentTime + 0.02, out = audio.sfxGain;
+  if (type === 'whoosh') {
+    const len = 0.35, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.sin((i / d.length) * Math.PI);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass';
+    f.frequency.setValueAtTime(400, t); f.frequency.exponentialRampToValueAtTime(3000, t + len);
+    src.connect(f); f.connect(out); src.start(t);
+  } else if (type === 'boom') {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(30, t + 0.5);
+    g.gain.setValueAtTime(0.8, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.8);
+  } else if (type === 'chirp') {
+    for (let i = 0; i < 4; i++) {
+      const o = ctx.createOscillator(), g = ctx.createGain(), tt = t + i * 0.16;
+      o.frequency.setValueAtTime(2200 + Math.random() * 800, tt);
+      o.frequency.exponentialRampToValueAtTime(3200, tt + 0.07);
+      g.gain.setValueAtTime(0.12, tt); g.gain.exponentialRampToValueAtTime(0.001, tt + 0.1);
+      o.connect(g); g.connect(out); o.start(tt); o.stop(tt + 0.12);
+    }
+  } else if (type === 'steps') {
+    for (let i = 0; i < 6; i++) drum(ctx, out, t + i * 0.3, 'kick');
+  } else if (type === 'wind') {
+    const len = 1.6, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.3;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.001, t); g.gain.linearRampToValueAtTime(0.25, t + 0.6);
+    g.gain.linearRampToValueAtTime(0.001, t + len);
+    src.connect(f); f.connect(g); g.connect(out); src.start(t);
+  } else if (type === 'bell') {
+    [523, 659, 784].forEach((f, i) => note(ctx, out, f, t + i * 0.28, 0.9, 'sine', 0.2));
+  } else if (type === 'magic') {
+    [880, 1108, 1318, 1760].forEach((f, i) => note(ctx, out, f, t + i * 0.09, 0.5, 'sine', 0.12));
+  } else if (type === 'crowd') {
+    const len = 1.4, buf = ctx.createBuffer(1, ctx.sampleRate * len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.15 * Math.sin((i / d.length) * Math.PI);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 800;
+    src.connect(f); f.connect(out); src.start(t);
+  }
+}
+// مؤثرات مجدولة مع الفيلم
+let sfxFired = new Set();
+export function checkSfx(prevT, t) {
+  for (const s of S.sfx) {
+    if (s.time > prevT && s.time <= t && !sfxFired.has(s.id + '|' + Math.floor(t))) {
+      playSfx(s.type);
+      sfxFired.add(s.id + '|' + Math.floor(t));
+    }
+  }
+  if (t < prevT) sfxFired.clear();
+}
+
+// ---------- حفظ / تحميل ----------
+export function serialize() {
+  return JSON.stringify({
+    v: 1, title: S.title, filmDur: S.filmDur, sun: S.sun, ambient: S.ambient, music: S.music,
+    objects: S.objects.map(o => ({
+      id: o.id, kind: o.kind, name: o.name, propType: o.propType, scale: o.scale,
+      colors: o.colors, track: o.track,
+    })),
+    shots: S.shots, sfx: S.sfx,
+    spots: S.spots,
+  });
+}
+export function deserialize(json) {
+  const d = JSON.parse(json);
+  clearAll();
+  S.title = d.title || 'فيلمي القصير';
+  S.filmDur = d.filmDur || 30;
+  S.sun = d.sun || S.sun; S.ambient = d.ambient ?? 0.55;
+  S.music = d.music || S.music;
+  for (const od of d.objects || []) {
+    let o;
+    if (od.kind === 'char') o = addCharacter(od.name, od.colors || {}, 0, 0);
+    else o = addProp(od.propType, 0, 0, od.scale || 1);
+    if (!o) continue;
+    o.track = od.track;
+  }
+  S.shots = d.shots || [];
+  S.sfx = d.sfx || [];
+  for (const sp of d.spots || []) addSpot(sp);
+  applySun(); applyVolume();
+}
+export function clearAll() {
+  for (const o of [...S.objects]) removeObject(o.id);
+  S.shots = []; S.sfx = [];
+  for (const sp of [...S.spots]) removeSpot(sp.id);
+  S.selected = null; S.time = 0;
+}
+
+// ---------- كشافات ----------
+export function addSpot(cfg = {}) {
+  const l = new THREE.SpotLight(cfg.color ?? 0xfff2cc, cfg.intensity ?? 60, 60, Math.PI / 5, 0.4, 1.4);
+  const pos = cfg.pos || [0, 8, 6], target = cfg.target || [0, 0, 0];
+  l.position.set(...pos);
+  l.target.position.set(...target);
+  l.castShadow = true;
+  scene.add(l); scene.add(l.target);
+  const sp = { id: cfg.id || genId(), color: l.color.getHex(), intensity: l.intensity, pos, target, light: l };
+  S.spots.push(sp);
+  return sp;
+}
+export function removeSpot(id) {
+  const i = S.spots.findIndex(s => s.id === id);
+  if (i < 0) return;
+  scene.remove(S.spots[i].light); scene.remove(S.spots[i].light.target);
+  S.spots.splice(i, 1);
+}
+export function updateSpot(sp) {
+  sp.light.color.setHex(sp.color);
+  sp.light.intensity = sp.intensity;
+  sp.light.position.set(...sp.pos);
+  sp.light.target.position.set(...sp.target);
+}
+
+// ---------- حلقة العرض ----------
+let prevT = 0, lastFrame = performance.now();
+export const filmCam = new THREE.PerspectiveCamera(50, 1, 0.1, 600);
+
+function applyTime(t) {
+  S.time = Math.max(0, Math.min(S.filmDur, t));
+  for (const o of S.objects) {
+    if (o.kind === 'char') poseCharacter(o, S.time);
+    else {
+      const { p } = evalObject(o, S.time);
+      o.group.position.set(p.x, p.y, p.z);
+      o.group.rotation.y = p.ry || 0;
+    }
+  }
+  // نار المخيم تتراقص
+  scene.traverse(m => {
+    if (m.name === 'flame') m.scale.setScalar(1 + Math.sin(t * 12 + m.id) * 0.15);
+    if (m.name === 'firelight') m.intensity = 2 + Math.sin(t * 10) * 0.5;
+  });
+}
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, (now - lastFrame) / 1000);
+  lastFrame = now;
+  if (S.playing) {
+    const prev = S.time;
+    applyTime(S.time + dt);
+    checkSfx(prev, S.time);
+    if (S.time >= S.filmDur) { pause(); if (onFilmEnd) onFilmEnd(); }
+  }
+  if (S.playing) {
+    const sh = activeShot(S.time);
+    const cam = sh ? sampleShotCam(sh, S.time) : null;
+    if (cam) {
+      filmCam.position.set(...cam.pos);
+      filmCam.lookAt(...cam.look);
+      filmCam.fov = cam.fov || 50;
+      filmCam.updateProjectionMatrix();
+      renderer.render(scene, filmCam);
+    } else {
+      controls.update();
+      renderer.render(scene, camera);
+    }
+  } else {
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  updateClock();
+}
+function resize() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * renderer.getPixelRatio() || canvas.height !== h * renderer.getPixelRatio()) {
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    filmCam.aspect = w / h; filmCam.updateProjectionMatrix();
+  }
+}
+new ResizeObserver(resize).observe(canvas);
+
+export let onFilmEnd = null;
+export function play() {
+  ensureAudio();
+  audio.ctx.resume();
+  S.playing = true;
+  controls.enabled = false;
+  document.getElementById('letterbox').classList.add('on');
+  document.getElementById('tl-play').textContent = '⏸';
+  startMusic(S.time);
+}
+export function pause() {
+  S.playing = false;
+  controls.enabled = true;
+  document.getElementById('letterbox').classList.remove('on');
+  document.getElementById('tl-play').textContent = '▶';
+  stopMusic();
+}
+export function seek(t) { applyTime(t); sfxFired.clear(); drawTimeline(); }
+
+// ---------- ساعة الفيلم ----------
+const clockEl = document.getElementById('film-clock');
+const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+function updateClock() {
+  clockEl.textContent = fmt(S.time) + ' / ' + fmt(S.filmDur);
+  document.getElementById('tl-time').textContent = S.time.toFixed(1) + ' ث / ' + S.filmDur + ' ث';
+}
+
+// ---------- تحديد باللمس/الفأرة ----------
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+let downPos = null;
+canvas.addEventListener('pointerdown', e => { downPos = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', e => {
+  if (!downPos) return;
+  const moved = Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]);
+  downPos = null;
+  if (moved > 6 || S.playing) return;
+  const r = canvas.getBoundingClientRect();
+  ptr.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ptr.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(scene.children, true);
+  for (const h of hits) {
+    const root = h.object.userData.objRoot;
+    if (root) {
+      const o = S.objects.find(x => x.group === root);
+      if (o) { select(o.id); toast('تم تحديد: ' + o.name); return; }
+    }
+  }
+  select(null);
+});
+
+// ---------- شريط الزمن ----------
+const tlc = document.getElementById('tl-canvas');
+const tlctx = tlc.getContext('2d');
+const SHOT_COLORS = ['#f5b942', '#4ecdc4', '#ff7b9c', '#9b8af7', '#7bd88a', '#ffa65c'];
+export function drawTimeline() {
+  const dpr = devicePixelRatio || 1;
+  const w = tlc.clientWidth, h = tlc.clientHeight;
+  if (tlc.width !== w * dpr) { tlc.width = w * dpr; tlc.height = h * dpr; }
+  tlctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  tlctx.clearRect(0, 0, w, h);
+  const x = t => (t / S.filmDur) * w;
+  // شبكة ثوانٍ
+  tlctx.strokeStyle = '#232850'; tlctx.fillStyle = '#6a70a0'; tlctx.font = '10px Cairo';
+  tlctx.textAlign = 'center';
+  const step = S.filmDur > 60 ? 10 : S.filmDur > 25 ? 5 : 2;
+  for (let s = 0; s <= S.filmDur; s += step) {
+    tlctx.beginPath(); tlctx.moveTo(x(s), 14); tlctx.lineTo(x(s), h); tlctx.stroke();
+    tlctx.fillText(s, x(s), 11);
+  }
+  // اللقطات
+  S.shots.forEach((sh, i) => {
+    tlctx.fillStyle = SHOT_COLORS[i % SHOT_COLORS.length] + '55';
+    tlctx.strokeStyle = SHOT_COLORS[i % SHOT_COLORS.length];
+    tlctx.beginPath(); tlctx.roundRect(x(sh.t0) + 1, 18, Math.max(4, x(sh.t1) - x(sh.t0) - 2), 22, 5);
+    tlctx.fill(); tlctx.stroke();
+    tlctx.fillStyle = '#fff'; tlctx.font = 'bold 10px Cairo';
+    if (x(sh.t1) - x(sh.t0) > 40) tlctx.fillText(sh.name, (x(sh.t0) + x(sh.t1)) / 2, 33);
+    // مفاتيح الكاميرا
+    for (const k of sh.keys) {
+      tlctx.fillStyle = SHOT_COLORS[i % SHOT_COLORS.length];
+      tlctx.beginPath(); tlctx.arc(x(k.t), 46, 3.5, 0, 7); tlctx.fill();
+    }
+  });
+  // مفاتيح العنصر المحدد
+  const sel = getObj(S.selected);
+  if (sel) {
+    tlctx.fillStyle = '#ffffff';
+    for (const k of sel.track.keys) {
+      tlctx.beginPath(); tlctx.moveTo(x(k.t), 58); tlctx.lineTo(x(k.t) - 4, 66); tlctx.lineTo(x(k.t) + 4, 66); tlctx.fill();
+    }
+    tlctx.fillStyle = '#4ecdc4';
+    for (const a of sel.track.actions) {
+      if (a.type === 'walk') { tlctx.fillRect(x(a.t0), 70, Math.max(3, x(a.t1) - x(a.t0)), 5); }
+      else { tlctx.fillRect(x(a.time) - 2, 70, 4, 5); }
+    }
+  }
+  // مؤثرات
+  tlctx.font = '11px Cairo';
+  for (const s of S.sfx) {
+    tlctx.fillStyle = '#ff7b9c';
+    tlctx.beginPath(); tlctx.arc(x(s.time), h - 10, 4, 0, 7); tlctx.fill();
+  }
+  // مؤشر الزمن
+  tlctx.strokeStyle = '#ff5d6c'; tlctx.lineWidth = 2;
+  tlctx.beginPath(); tlctx.moveTo(x(S.time), 0); tlctx.lineTo(x(S.time), h); tlctx.stroke();
+  tlctx.lineWidth = 1;
+}
+let scrubbing = false;
+function scrubTo(e) {
+  const r = tlc.getBoundingClientRect();
+  const t = Math.max(0, Math.min(S.filmDur, ((e.clientX - r.left) / r.width) * S.filmDur));
+  seek(t);
+}
+tlc.addEventListener('pointerdown', e => { scrubbing = true; scrubTo(e); });
+addEventListener('pointermove', e => { if (scrubbing) scrubTo(e); });
+addEventListener('pointerup', () => scrubbing = false);
+
+// ---------- واجهة اللوحات ----------
+const panelBody = document.getElementById('panel-body');
+let activeTab = 'scene';
+document.querySelectorAll('#panel-tabs button').forEach(b => {
+  b.onclick = () => {
+    activeTab = b.dataset.tab;
+    document.querySelectorAll('#panel-tabs button').forEach(x => x.classList.toggle('active', x === b));
+    renderPanel();
+  };
+});
+const panelToggle = document.getElementById('panel-toggle');
+const panelEl = document.getElementById('panel');
+panelToggle.onclick = () => {
+  panelEl.classList.toggle('hidden');
+  panelToggle.textContent = panelEl.classList.contains('hidden') ? '◀' : '▶';
+};
+if (innerWidth < 760) { panelEl.classList.add('hidden'); panelToggle.textContent = '◀'; }
+
+export function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2200);
+}
+export function select(id) { S.selected = id; renderPanel(); drawTimeline(); }
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const hex = n => '#' + n.toString(16).padStart(6, '0');
+
+function renderPanel() {
+  if (activeTab === 'scene') renderSceneTab();
+  else if (activeTab === 'shots') renderShotsTab();
+  else if (activeTab === 'sound') renderSoundTab();
+  else renderLightTab();
+}
+
+// ---- تبويب المشهد ----
+function renderSceneTab() {
+  const sel = getObj(S.selected);
+  let html = `
+  <div class="sec"><h4>➕ إضافة ممثل</h4>
+    <div class="row"><label>الاسم</label><input type="text" id="nc-name" placeholder="بطل الفيلم"></div>
+    <div class="row"><label>القميص</label><input type="color" id="nc-shirt" value="#3a6bd6">
+    <label>البنطلون</label><input type="color" id="nc-pants" value="#2c2f45">
+    <label>البشرة</label><input type="color" id="nc-skin" value="#e8b88a"></div>
+    <button class="chip-btn sel" id="nc-add" style="width:100%">إضافة الممثل للمشهد 🎭</button>
+  </div>
+  <div class="sec"><h4>🏺 إضافة ديكور</h4><div class="grid2" id="prop-grid">`;
+  for (const [k, d] of Object.entries(PROP_DEFS)) html += `<button class="chip-btn" data-prop="${k}">${d.name}</button>`;
+  html += `</div></div>`;
+  if (sel) {
+    html += `<div class="sec"><h4>🎯 المحدد: ${esc(sel.name)}</h4>
+      <div class="row"><label>الاسم</label><input type="text" id="sel-name" value="${esc(sel.name)}"></div>
+      <div class="row"><label>مكان X</label><input type="range" id="sel-x" min="-60" max="60" step="0.5" value="${sel.group.position.x}"><span id="sel-x-v" style="font-size:11px;width:30px">${sel.group.position.x.toFixed(1)}</span></div>
+      <div class="row"><label>مكان Z</label><input type="range" id="sel-z" min="-60" max="60" step="0.5" value="${sel.group.position.z}"><span id="sel-z-v" style="font-size:11px;width:30px">${sel.group.position.z.toFixed(1)}</span></div>
+      <div class="row"><label>اتجاه</label><input type="range" id="sel-ry" min="-3.14" max="3.14" step="0.05" value="${(sel.track.keys[0]?.ry || 0)}"></div>`;
+    if (sel.kind === 'prop') html += `<div class="row"><label>حجم</label><input type="range" id="sel-sc" min="0.3" max="4" step="0.1" value="${sel.scale || 1}"></div>`;
+    html += `<button class="chip-btn sel" id="sel-key" style="width:100%">📍 ثبّت مفتاح حركة عند ${S.time.toFixed(1)} ث</button>`;
+    if (sel.kind === 'char') {
+      html += `<div class="row" style="margin-top:6px"><label>يمشي إلى</label>
+        <input type="number" id="walk-x" placeholder="X" style="width:56px;flex:none">
+        <input type="number" id="walk-z" placeholder="Z" style="width:56px;flex:none">
+        <button class="chip-btn" id="walk-add">🚶 أضف مشي</button></div>
+      <div class="row"><label>إيماءة</label><select id="gest-sel">${GESTURES.map(g => `<option value="${g[0]}">${g[1]}</option>`).join('')}</select>
+        <button class="chip-btn" id="gest-add">أضف عند ${S.time.toFixed(1)}ث</button></div>`;
+    }
+    html += `<div class="obj-list" style="max-height:110px;margin-top:6px">`;
+    sel.track.actions.forEach((a, i) => {
+      const txt = a.type === 'walk' ? `🚶 مشي ${a.t0.toFixed(1)}→${a.t1.toFixed(1)}ث` : `${GESTURES.find(g=>g[0]===a.name)?.[1]||a.name} @${a.time.toFixed(1)}ث`;
+      html += `<div class="obj-item"><span class="nm">${txt}</span><span class="x" data-del-act="${i}">✕</span></div>`;
+    });
+    html += `</div></div>`;
+  }
+  html += `<div class="sec"><h4>📋 عناصر المشهد <span class="mini" id="objs-count">${S.objects.length} عنصر</span></h4><div class="obj-list">`;
+  for (const o of S.objects) {
+    const col = o.kind === 'char' ? hex(o.colors.shirt) : '#8a8578';
+    html += `<div class="obj-item ${o.id === S.selected ? 'sel' : ''}" data-sel="${o.id}">
+      <span class="sw" style="background:${col}"></span><span class="nm">${o.kind === 'char' ? '🧍' : '🏺'} ${esc(o.name)}</span>
+      <span class="x" data-del="${o.id}">✕</span></div>`;
+  }
+  html += `</div></div>`;
+  panelBody.innerHTML = html;
+  // أحداث
+  document.getElementById('nc-add').onclick = () => {
+    const name = document.getElementById('nc-name').value.trim() || undefined;
+    const o = addCharacter(name, {
+      shirt: parseInt(document.getElementById('nc-shirt').value.slice(1), 16),
+      pants: parseInt(document.getElementById('nc-pants').value.slice(1), 16),
+      skin: parseInt(document.getElementById('nc-skin').value.slice(1), 16),
+    }, (Math.random() * 10 - 5), (Math.random() * 10 - 5));
+    select(o.id); toast('انضم ممثل جديد 🎭');
+  };
+  panelBody.querySelectorAll('[data-prop]').forEach(b => b.onclick = () => {
+    const o = addProp(b.dataset.prop, (Math.random() * 16 - 8), (Math.random() * 16 - 8));
+    if (o) { select(o.id); toast('أُضيف: ' + o.name); }
+  });
+  panelBody.querySelectorAll('[data-sel]').forEach(el => el.onclick = e => { if (e.target.dataset.del) return; select(el.dataset.sel); });
+  panelBody.querySelectorAll('[data-del]').forEach(el => el.onclick = () => { removeObject(el.dataset.del); renderPanel(); drawTimeline(); });
+  if (sel) {
+    const bindRange = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.oninput = () => fn(parseFloat(el.value));
+    };
+    bindRange('sel-x', v => { sel.group.position.x = v; document.getElementById('sel-x-v').textContent = v.toFixed(1); });
+    bindRange('sel-z', v => { sel.group.position.z = v; document.getElementById('sel-z-v').textContent = v.toFixed(1); });
+    bindRange('sel-ry', v => { sel.group.rotation.y = v; });
+    bindRange('sel-sc', v => { sel.scale = v; sel.group.scale.setScalar(v); });
+    const nm = document.getElementById('sel-name');
+    if (nm) nm.onchange = () => { sel.name = nm.value; renderPanel(); };
+    document.getElementById('sel-key').onclick = () => {
+      addKey(sel, S.time, sel.group.position.x, sel.group.position.z, sel.group.rotation.y);
+      toast('مفتاح حركة عند ' + S.time.toFixed(1) + ' ث 📍'); drawTimeline();
+    };
+    const wa = document.getElementById('walk-add');
+    if (wa) wa.onclick = () => {
+      const tx = parseFloat(document.getElementById('walk-x').value), tz = parseFloat(document.getElementById('walk-z').value);
+      if (isNaN(tx) || isNaN(tz)) return toast('اكتب إحداثيات الهدف X و Z');
+      const cur = evalObject(sel, S.time).p;
+      const dist = Math.hypot(tx - cur.x, tz - cur.z);
+      const dur = Math.max(1, dist / 1.4);
+      sel.track.actions.push({ type: 'walk', t0: S.time, t1: Math.min(S.filmDur, S.time + dur), fx: cur.x, fz: cur.z, tx, tz });
+      toast('مشي لمسافة ' + dist.toFixed(1) + ' م 🚶'); renderPanel(); drawTimeline();
+    };
+    const ga = document.getElementById('gest-add');
+    if (ga) ga.onclick = () => {
+      sel.track.actions.push({ type: 'gesture', name: document.getElementById('gest-sel').value, time: S.time, dur: 2 });
+      toast('إيماءة عند ' + S.time.toFixed(1) + ' ث'); renderPanel(); drawTimeline();
+    };
+    panelBody.querySelectorAll('[data-del-act]').forEach(el => el.onclick = () => {
+      sel.track.actions.splice(+el.dataset.delAct, 1); renderPanel(); drawTimeline();
+    });
+  }
+}
+
+// ---- تبويب اللقطات ----
+function renderShotsTab() {
+  let html = `<div class="sec"><h4>🎥 اللقطات</h4>
+    <p style="font-size:11.5px;color:var(--muted);margin:0 0 8px">كل لقطة لها زمن وكاميرا. حرّك الكاميرا في العرض ثم اضغط «التقط» لتخزين مفتاح كاميرا عند الزمن الحالي.</p>
+    <div class="row"><input type="text" id="sh-name" placeholder="اسم اللقطة">
+    <button class="chip-btn sel" id="sh-split">✂️ قسّم عند ${S.time.toFixed(1)}ث</button></div>
+    <button class="chip-btn" id="sh-add" style="width:100%">＋ لقطة جديدة تغطي باقي الفيلم</button>
+  </div>`;
+  S.shots.forEach((sh, i) => {
+    html += `<div class="sec"><h4 style="color:${SHOT_COLORS[i % 6]}">${esc(sh.name)} <span class="mini" data-del-shot="${sh.id}">حذف ✕</span></h4>
+      <div class="row"><label>من</label><input type="number" id="sh-t0-${sh.id}" value="${sh.t0}" step="0.5" style="width:64px;flex:none">
+      <label>إلى</label><input type="number" id="sh-t1-${sh.id}" value="${sh.t1}" step="0.5" style="width:64px;flex:none">
+      <label>عدسة</label><input type="number" id="sh-fov-${sh.id}" value="50" step="1" style="width:56px;flex:none"></div>
+      <button class="chip-btn sel" data-shot-key="${sh.id}" style="width:100%">📸 التقط الكاميرا الحالية @ ${S.time.toFixed(1)}ث</button>
+      <div class="obj-list" style="max-height:80px;margin-top:6px">`;
+    sh.keys.forEach((k, ki) => {
+      html += `<div class="obj-item"><span class="nm">📸 @${k.t.toFixed(1)}ث عدسة ${k.fov}</span><span class="x" data-del-key="${sh.id}|${ki}">✕</span></div>`;
+    });
+    html += `</div></div>`;
+  });
+  panelBody.innerHTML = html;
+  document.getElementById('sh-add').onclick = () => {
+    const last = S.shots[S.shots.length - 1];
+    const t0 = last ? last.t1 : 0;
+    if (t0 >= S.filmDur) return toast('اللقطات تغطي الفيلم كله');
+    addShot(document.getElementById('sh-name').value.trim() || undefined, t0, S.filmDur);
+    renderPanel(); drawTimeline();
+  };
+  document.getElementById('sh-split').onclick = () => {
+    const sh = S.shots.find(s => S.time > s.t0 && S.time < s.t1);
+    if (!sh) return toast('ضع المؤشر داخل لقطة لتقسيمها');
+    const t1 = sh.t1; sh.t1 = S.time;
+    addShot(sh.name + ' (ب)', S.time, t1);
+    sh.keys.forEach(k => { if (k.t > S.time) { /* تبقى */ } });
+    renderPanel(); drawTimeline(); toast('تم التقسيم ✂️');
+  };
+  panelBody.querySelectorAll('[data-shot-key]').forEach(b => b.onclick = () => {
+    const sh = S.shots.find(s => s.id === b.dataset.shotKey);
+    const fovEl = document.getElementById('sh-fov-' + sh.id);
+    const fov = Math.max(20, Math.min(100, parseFloat(fovEl.value) || 50));
+    shotKey(sh, S.time, camera.position.toArray(), controls.target.toArray(), fov);
+    toast('مفتاح كاميرا محفوظ 📸'); renderPanel(); drawTimeline();
+  });
+  panelBody.querySelectorAll('[data-del-shot]').forEach(el => el.onclick = () => {
+    removeShot(el.dataset.delShot); renderPanel(); drawTimeline();
+  });
+  panelBody.querySelectorAll('[data-del-key]').forEach(el => el.onclick = () => {
+    const [sid, ki] = el.dataset.delKey.split('|');
+    const sh = S.shots.find(s => s.id === sid);
+    sh.keys.splice(+ki, 1); renderPanel(); drawTimeline();
+  });
+  S.shots.forEach(sh => {
+    const t0 = document.getElementById('sh-t0-' + sh.id), t1 = document.getElementById('sh-t1-' + sh.id);
+    if (t0) t0.onchange = () => { sh.t0 = Math.max(0, parseFloat(t0.value) || 0); S.shots.sort((a, b) => a.t0 - b.t0); drawTimeline(); };
+    if (t1) t1.onchange = () => { sh.t1 = Math.min(S.filmDur, parseFloat(t1.value) || S.filmDur); drawTimeline(); };
+  });
+}
+
+// ---- تبويب الصوت ----
+function renderSoundTab() {
+  let html = `<div class="sec"><h4>🎵 موسيقى الفيلم</h4>
+    <div class="row"><label>النمط</label><select id="mus-mood">${MOOD_KEYS.map(k => `<option value="${k}" ${S.music.mood === k ? 'selected' : ''}>${moodName(k)}</option>`).join('')}</select></div>
+    <div class="row"><label>الصوت</label><input type="range" id="mus-vol" min="0" max="1" step="0.05" value="${S.music.volume}"></div>
+    <div class="row"><label>تشغيل</label><input type="checkbox" id="mus-on" ${S.music.on ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--accent)">
+    <button class="chip-btn" id="mus-test">🎧 تجربة</button></div>
+  </div>
+  <div class="sec"><h4>🔊 مؤثرات صوتية</h4>
+    <div class="row"><select id="sfx-type">${Object.entries(SFX_DEFS).map(([k, d]) => `<option value="${k}">${d.name}</option>`).join('')}</select>
+    <button class="chip-btn sel" id="sfx-add">＋ @${S.time.toFixed(1)}ث</button>
+    <button class="chip-btn" id="sfx-test">🎧</button></div>
+    <div class="obj-list">`;
+  S.sfx.forEach((s, i) => {
+    html += `<div class="obj-item"><span class="nm">${SFX_DEFS[s.type]?.name || s.type} @${s.time.toFixed(1)}ث</span><span class="x" data-del-sfx="${i}">✕</span></div>`;
+  });
+  html += `</div></div>`;
+  panelBody.innerHTML = html;
+  document.getElementById('mus-mood').onchange = e => { S.music.mood = e.target.value; saveLocal(); };
+  document.getElementById('mus-vol').oninput = e => { S.music.volume = +e.target.value; applyVolume(); };
+  document.getElementById('mus-on').onchange = e => { S.music.on = e.target.checked; };
+  document.getElementById('mus-test').onclick = () => { ensureAudio(); audio.ctx.resume(); startMusic(0); setTimeout(stopMusic, 2500); };
+  document.getElementById('sfx-add').onclick = () => {
+    S.sfx.push({ id: genId(), time: S.time, type: document.getElementById('sfx-type').value });
+    toast('مؤثر عند ' + S.time.toFixed(1) + ' ث 🔊'); renderPanel(); drawTimeline();
+  };
+  document.getElementById('sfx-test').onclick = () => { ensureAudio(); audio.ctx.resume(); playSfx(document.getElementById('sfx-type').value); };
+  panelBody.querySelectorAll('[data-del-sfx]').forEach(el => el.onclick = () => {
+    S.sfx.splice(+el.dataset.delSfx, 1); renderPanel(); drawTimeline();
+  });
+}
+
+// ---- تبويب الإضاءة ----
+function renderLightTab() {
+  const todNames = ['فجر 🌅', 'ظهر ☀️', 'غروب 🌇', 'ليل 🌙'];
+  const todName = todNames[Math.min(3, Math.floor(S.sun.tod * 4))];
+  let html = `<div class="sec"><h4>☀️ الشمس ووقت اليوم</h4>
+    <div class="row"><label>الوقت</label><input type="range" id="sun-tod" min="0" max="1" step="0.01" value="${S.sun.tod}"><span style="font-size:12px;color:var(--accent);font-weight:700">${todName}</span></div>
+    <div class="row"><label>قوة الشمس</label><input type="range" id="sun-int" min="0" max="2.5" step="0.05" value="${S.sun.intensity}"></div>
+    <div class="row"><label>إضاءة عامة</label><input type="range" id="amb-int" min="0" max="1.5" step="0.05" value="${S.ambient}"></div>
+  </div>
+  <div class="sec"><h4>🔦 كشافات تصوير</h4>
+    <button class="chip-btn sel" id="spot-add" style="width:100%">＋ كشاف جديد</button>
+    <div class="obj-list" style="margin-top:6px">`;
+  for (const sp of S.spots) {
+    html += `<div class="obj-item"><span class="sw" style="background:${hex(sp.color)}"></span><span class="nm">كشاف (${sp.pos.map(v => v.toFixed(0)).join(', ')})</span><span class="x" data-del-spot="${sp.id}">✕</span></div>
+    <div class="row"><label>لون</label><input type="color" data-spot-col="${sp.id}" value="${hex(sp.color)}">
+    <label>قوة</label><input type="range" data-spot-int="${sp.id}" min="0" max="200" step="5" value="${sp.intensity}"></div>`;
+  }
+  html += `</div></div>`;
+  panelBody.innerHTML = html;
+  document.getElementById('sun-tod').oninput = e => { S.sun.tod = +e.target.value; applySun(); renderPanel(); };
+  document.getElementById('sun-int').oninput = e => { S.sun.intensity = +e.target.value; applySun(); };
+  document.getElementById('amb-int').oninput = e => { S.ambient = +e.target.value; applySun(); };
+  document.getElementById('spot-add').onclick = () => {
+    addSpot({ pos: [Math.random() * 10 - 5, 7, Math.random() * 8 + 2], color: 0xfff2cc, intensity: 60 });
+    renderPanel();
+  };
+  panelBody.querySelectorAll('[data-del-spot]').forEach(el => el.onclick = () => { removeSpot(el.dataset.delSpot); renderPanel(); });
+  panelBody.querySelectorAll('[data-spot-col]').forEach(el => el.oninput = () => {
+    const sp = S.spots.find(s => s.id === el.dataset.spotCol);
+    sp.color = parseInt(el.value.slice(1), 16); updateSpot(sp);
+  });
+  panelBody.querySelectorAll('[data-spot-int]').forEach(el => el.oninput = () => {
+    const sp = S.spots.find(s => s.id === el.dataset.spotInt);
+    sp.intensity = +el.value; updateSpot(sp);
+  });
+}
+
+// ---------- مشهد جاهز ----------
+function buildDemo() {
+  clearAll();
+  S.filmDur = 30; S.title = 'لقاء عند الأهرام';
+  // ديكور
+  addProp('pyramid', -18, -30, 2.2);
+  addProp('pyramid', -32, -22, 1.4);
+  addProp('sphinx', 8, -18, 1.6);
+  addProp('palm', 12, -8); addProp('palm', 15, -4); addProp('palm', -8, -10);
+  addProp('column', -6, -14); addProp('column', 2, -14);
+  addProp('fire', 0, 2);
+  addProp('tent', 10, 6); addProp('rock', -7, 6); addProp('well', 7, 12);
+  // ممثلون
+  const hero = addCharacter('سارة', { shirt: 0xd6455a, pants: 0x2c2f45, hair: 0x1a1410 }, -14, 8);
+  const hero2 = addCharacter('عمر', { shirt: 0x3a6bd6, pants: 0x3a3a20, skin: 0xc98f5e }, 14, 6);
+  // سارة تمشي للنار وتلوّح
+  hero.track.actions.push({ type: 'walk', t0: 1, t1: 8, fx: -14, fz: 8, tx: -2, tz: 3 });
+  hero.track.actions.push({ type: 'gesture', name: 'wave', time: 9, dur: 2.5 });
+  hero.track.actions.push({ type: 'gesture', name: 'sit', time: 20, dur: 3 });
+  // عمر يمشي ويقفز فرحًا ويصفق
+  hero2.track.actions.push({ type: 'walk', t0: 2, t1: 9, fx: 14, fz: 6, tx: 2.5, tz: 3.5 });
+  hero2.track.actions.push({ type: 'gesture', name: 'jump', time: 10.5, dur: 1.6 });
+  hero2.track.actions.push({ type: 'gesture', name: 'clap', time: 13, dur: 3 });
+  hero2.track.actions.push({ type: 'gesture', name: 'point', time: 16.5, dur: 2.5 });
+  hero2.track.actions.push({ type: 'gesture', name: 'sit', time: 20.5, dur: 3 });
+  // اللقطات
+  const sh1 = addShot('افتتاحية واسعة', 0, 8);
+  shotKey(sh1, 0, [26, 14, 30], [0, 2, -6], 55);
+  shotKey(sh1, 8, [16, 8, 22], [0, 2, 0], 50);
+  const sh2 = addShot('اقتراب اللقاء', 8, 16);
+  shotKey(sh2, 8, [8, 4, 12], [0, 1.6, 3], 42);
+  shotKey(sh2, 16, [-6, 3, 9], [0, 1.6, 3], 40);
+  const sh3 = addShot('حول النار', 16, 24);
+  shotKey(sh3, 16, [5, 2.2, 7], [0, 1.2, 2], 38);
+  shotKey(sh3, 24, [-5, 2.2, 7], [0, 1.2, 2], 38);
+  const sh4 = addShot('خاتمة الغروب', 24, 30);
+  shotKey(sh4, 24, [0, 3, 14], [0, 3, -10], 48);
+  shotKey(sh4, 30, [0, 16, 26], [0, 2, -14], 55);
+  // صوت
+  S.music.mood = 'oriental';
+  S.sfx = [
+    { id: genId(), time: 0.5, type: 'wind' }, { id: genId(), time: 2, type: 'chirp' },
+    { id: genId(), time: 5, type: 'steps' }, { id: genId(), time: 9.2, type: 'magic' },
+    { id: genId(), time: 16.8, type: 'whoosh' }, { id: genId(), time: 24.5, type: 'bell' },
+  ];
+  // غروب سينمائي
+  S.sun.tod = 0.48; S.sun.intensity = 1.3;
+  addSpot({ pos: [0, 6, 8], color: 0xffd9a0, intensity: 80, target: [0, 1, 2] });
+  seek(0); applySun();
+}
+
+// ---------- تصدير الفيلم ----------
+let recorder = null, recChunks = [];
+function exportFilm() {
+  if (S.playing) pause();
+  ensureAudio(); audio.ctx.resume();
+  const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus'
+    : MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '';
+  const stream = canvas.captureStream(30);
+  const atrack = audio.dest.stream.getAudioTracks()[0];
+  if (atrack) stream.addTrack(atrack);
+  try { recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8_000_000 } : undefined); }
+  catch (e) { recorder = new MediaRecorder(stream); }
+  recChunks = [];
+  recorder.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
+  recorder.onstop = () => {
+    document.getElementById('rec-badge').classList.remove('on');
+    overlay(false);
+    onFilmEnd = null;
+    const blob = new Blob(recChunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = (S.title || 'فيلم') + '.webm';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    toast('تم تصدير الفيلم ⬇️ (' + (blob.size / 1048576).toFixed(1) + ' م.ب)');
+  };
+  overlay(true, 'جارٍ تصوير وتصدير فيلمك…', 'الفيلم يُعرض الآن من البداية ويُسجَّل لقطة بلقطة. لا تغلق الصفحة.');
+  document.getElementById('rec-badge').classList.add('on');
+  seek(0);
+  recorder.start(250);
+  onFilmEnd = () => { pause(); setTimeout(() => recorder.state !== 'inactive' && recorder.stop(), 400); };
+  play();
+}
+function overlay(show, title, text, btns) {
+  const ov = document.getElementById('overlay'), box = document.getElementById('overlay-box');
+  if (!show) { ov.classList.remove('on'); return; }
+  box.innerHTML = (title ? `<div class="spinner"></div><h2>${title}</h2>` : '') + (text ? `<p>${text}</p>` : '');
+  if (btns) {
+    const row = document.createElement('div'); row.className = 'row';
+    btns.forEach(b => {
+      const btn = document.createElement('button');
+      btn.className = 'tb-btn ' + (b.cls || ''); btn.textContent = b.t;
+      btn.onclick = b.fn; row.appendChild(btn);
+    });
+    box.appendChild(row);
+  }
+  ov.classList.add('on');
+}
+
+// ---------- حفظ محلي ----------
+const LS_KEY = 'cinema3d-project';
+let saveT = null;
+export function saveLocal() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => { try { localStorage.setItem(LS_KEY, serialize()); } catch (e) {} }, 600);
+}
+
+// ---------- شريط الأدوات ----------
+document.getElementById('btn-demo').onclick = () => {
+  buildDemo(); renderPanel(); drawTimeline(); saveLocal();
+  toast('مشهد جاهز: «لقاء عند الأهرام» — اضغط تشغيل ▶');
+};
+document.getElementById('btn-export').onclick = exportFilm;
+document.getElementById('btn-save').onclick = () => { localStorage.setItem(LS_KEY, serialize()); toast('تم الحفظ 💾'); };
+document.getElementById('btn-savejson').onclick = () => {
+  const blob = new Blob([serialize()], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = (S.title || 'مشروع') + '.json'; a.click();
+};
+document.getElementById('btn-loadjson').onclick = () => document.getElementById('json-file').click();
+document.getElementById('json-file').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    deserialize(await f.text());
+    document.getElementById('film-dur').value = S.filmDur;
+    document.getElementById('film-dur-lbl').textContent = S.filmDur + ' ث';
+    renderPanel(); drawTimeline(); seek(0);
+    toast('تم الاستيراد 📂');
+  } catch (err) { toast('ملف غير صالح ⚠️'); }
+  e.target.value = '';
+};
+document.getElementById('btn-clear').onclick = () => {
+  overlay(true, '', 'تبدأ مشروعًا جديدًا من الصفر؟ سيتم مسح المشهد الحالي.', [
+    { t: 'نعم، مشروع جديد', cls: 'danger', fn: () => { clearAll(); S.filmDur = 30; addShot('لقطة 1', 0, 30); S.sun.tod = 0.35; applySun(); seek(0); renderPanel(); drawTimeline(); overlay(false); saveLocal(); } },
+    { t: 'إلغاء', fn: () => overlay(false) },
+  ]);
+};
+
+// ---------- شريط الزمن ----------
+document.getElementById('tl-play').onclick = () => S.playing ? pause() : play();
+document.getElementById('tl-stop').onclick = () => { pause(); seek(0); };
+document.getElementById('film-dur').oninput = e => {
+  S.filmDur = +e.target.value;
+  document.getElementById('film-dur-lbl').textContent = S.filmDur + ' ث';
+  drawTimeline(); saveLocal();
+};
+document.getElementById('tl-addmark').onclick = () => {
+  S.sfx.push({ id: genId(), time: S.time, type: 'whoosh' });
+  toast('حدث صوتي عند ' + S.time.toFixed(1) + ' ث (غيّر نوعه من تبويب الصوت)');
+  drawTimeline(); if (activeTab === 'sound') renderPanel();
+};
+
+// حفظ تلقائي عند التغييرات
+setInterval(saveLocal, 5000);
+addEventListener('beforeunload', () => { try { localStorage.setItem(LS_KEY, serialize()); } catch (e) {} });
+
+// ---------- إقلاع ----------
+(function boot() {
+  const saved = localStorage.getItem(LS_KEY);
+  if (saved) {
+    try {
+      deserialize(saved);
+      document.getElementById('film-dur').value = S.filmDur;
+      document.getElementById('film-dur-lbl').textContent = S.filmDur + ' ث';
+    } catch (e) { buildDemo(); }
+  } else {
+    buildDemo();
+  }
+  if (!S.shots.length) addShot('لقطة 1', 0, S.filmDur);
+  applySun(); applyVolume(); seek(0);
+  renderPanel(); drawTimeline(); resize();
+  requestAnimationFrame(animate);
+  setTimeout(() => document.getElementById('viewport-hint').style.opacity = 0, 6000);
+})();
