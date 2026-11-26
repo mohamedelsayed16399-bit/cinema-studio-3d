@@ -244,6 +244,54 @@ export const PROP_DEFS = {
     g.add(mesh(new THREE.DodecahedronGeometry(0.5, 0), MAT(0xb09a6a), 2.6, 0.35, 0.4));
     return g;
   }},
+  streetlamp: { name: 'عمود نور', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.09, 0.13, 4.6, 8), MAT(0x3a3f4a), 0, 2.3, 0));
+    const arm = mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 6), MAT(0x3a3f4a), 0.5, 4.55, 0);
+    arm.rotation.z = Math.PI / 2; g.add(arm);
+    g.add(mesh(new THREE.SphereGeometry(0.28, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe9a8 }), 1.05, 4.45, 0, false));
+    const l = new THREE.PointLight(0xffdf90, 1.6, 14, 1.8); l.position.set(1.05, 4.3, 0); l.name = 'firelight';
+    g.add(l);
+    return g;
+  }},
+  stall: { name: 'كشك سوق', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(2.6, 0.9, 1.4), MAT(0x8a5a30), 0, 0.45, 0));
+    for (const dx of [-1.2, 1.2]) for (const dz of [-0.6, 0.6])
+      g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 6), MAT(0x6a4a2a), dx, 1.2, dz));
+    const roof = mesh(new THREE.BoxGeometry(3, 0.12, 1.9), new THREE.MeshStandardMaterial({ color: 0xd4504a }), 0, 2.45, 0);
+    roof.rotation.x = 0.08; g.add(roof);
+    for (let i = 0; i < 6; i++)
+      g.add(mesh(new THREE.SphereGeometry(0.16, 8, 6), MAT([0xe8842a, 0xc23a3a, 0x3a8a3a][i % 3]), -1 + (i % 3) * 0.5, 1.02 + Math.floor(i / 3) * 0.28, 0));
+    return g;
+  }},
+  camel: { name: 'جمل', make() {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.SphereGeometry(0.9, 12, 10), MAT(0xc9985e), 0, 1.35, 0);
+    body.scale.set(1.5, 0.95, 0.8); g.add(body);
+    g.add(mesh(new THREE.SphereGeometry(0.42, 10, 8), MAT(0xb8874e), -0.1, 2, 0));
+    const neck = mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.5, 8), MAT(0xc9985e), 1.15, 2.3, 0);
+    neck.rotation.z = -0.5; g.add(neck);
+    const head = mesh(new THREE.BoxGeometry(0.55, 0.3, 0.28), MAT(0xc9985e), 1.75, 2.95, 0);
+    head.rotation.z = -0.15; g.add(head);
+    for (const dx of [-0.8, 0.8]) for (const dz of [-0.3, 0.3])
+      g.add(mesh(new THREE.CylinderGeometry(0.09, 0.08, 1.3, 6), MAT(0xb8874e), dx, 0.65, dz));
+    return g;
+  }},
+  bike: { name: 'موتوسيكل', make() {
+    const g = new THREE.Group();
+    const w1 = mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 16), MAT(0x1a1c22), -0.85, 0.55, 0);
+    const w2 = mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 16), MAT(0x1a1c22), 0.95, 0.55, 0);
+    g.add(w1); g.add(w2);
+    const body = mesh(new THREE.BoxGeometry(1.6, 0.4, 0.5), MAT(0xc23a3a), 0.1, 0.95, 0);
+    body.rotation.z = -0.06; g.add(body);
+    g.add(mesh(new THREE.BoxGeometry(0.5, 0.28, 0.44), MAT(0x2a2e3a), -0.5, 1.2, 0));
+    const bar = mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8, 6), MAT(0x888), 0.95, 1.45, 0);
+    bar.rotation.x = Math.PI / 2; g.add(bar);
+    const head = mesh(new THREE.SphereGeometry(0.14, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), 1.35, 1.15, 0, false);
+    g.add(head);
+    return g;
+  }},
 };
 
 // ---------- إدارة العناصر ----------
@@ -391,6 +439,14 @@ function poseCharacter(o, t) {
       parts.head.rotation.x = 0.4 * env;
       parts.armL.rotation.x = -2.6 * env; parts.armR.rotation.x = -2.6 * env;
       parts.body.position.y = 1.25 - 0.1 * env;
+    } else if (gesture.name === 'think') {
+      parts.armR.rotation.x = -2.1 * env; parts.armR.rotation.y = 0.6 * env;
+      parts.head.rotation.x = 0.18 * env; parts.head.rotation.z = 0.15 * env;
+    } else if (gesture.name === 'faint') {
+      const f = Math.min(1, k * 1.4);
+      g.rotation.z = -f * Math.PI / 2 * 0.94;
+      g.position.y -= f * 0.5;
+      parts.armL.rotation.x = -0.6 * env; parts.armR.rotation.x = -0.6 * env;
     }
   } else {
     parts.armR.rotation.z *= 0.8; parts.armL.rotation.z *= 0.8;
@@ -402,7 +458,8 @@ function poseCharacter(o, t) {
 export const GESTURES = [
   ['wave', '👋 يلوّح'], ['run', '🏃 يجري'], ['jump', '🦘 يقفز'], ['sit', '🪑 يجلس'],
   ['bow', '🙇 ينحني'], ['point', '👉 يشير'], ['clap', '👏 يصفّق'],
-  ['dance', '💃 يرقص'], ['punch', '🥊 يلكم'], ['cheer', '🎉 يحتفل'], ['cry', '😢 يبكي']
+  ['dance', '💃 يرقص'], ['punch', '🥊 يلكم'], ['cheer', '🎉 يحتفل'], ['cry', '😢 يبكي'],
+  ['think', '🤔 يفكّر'], ['faint', '😵 يغمى عليه']
 ];
 
 // ---------- اللقطات ----------
@@ -612,7 +669,7 @@ export function serialize() {
     })),
     shots: S.shots, sfx: S.sfx,
     spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
-    bubbles: S.bubbles || [],
+    bubbles: S.bubbles || [], slowmo: S.slowmo || false,
   });
 }
 export function deserialize(json) {
@@ -634,6 +691,8 @@ export function deserialize(json) {
   S.texts = d.texts || [];
   S.narr = d.narr || [];
   S.bubbles = d.bubbles || [];
+  S.slowmo = d.slowmo || false;
+  const slBtn = document.getElementById('tl-slow'); if (slBtn) slBtn.classList.toggle('sel', S.slowmo);
   clearBubbleSprites();
   setWeather(d.weather || 'none');
   for (const sp of d.spots || []) addSpot(sp);
@@ -700,7 +759,7 @@ function animate(now) {
   lastFrame = now;
   if (S.playing) {
     const prev = S.time;
-    applyTime(S.time + dt);
+    applyTime(S.time + dt * (S.slowmo ? 0.4 : 1));
     checkSfx(prev, S.time);
     checkNarr(prev, S.time);
     checkShotMood();
@@ -722,6 +781,11 @@ function animate(now) {
       } else filmCam.lookAt(...cam.look);
       filmCam.fov = cam.fov || 50;
       filmCam.updateProjectionMatrix();
+      if (sh.shake) {
+        const s = sh.shake * 0.028;
+        filmCam.rotation.x += Math.sin(S.time * 37) * s + Math.sin(S.time * 71) * s * 0.4;
+        filmCam.rotation.y += Math.sin(S.time * 43 + 1.3) * s;
+      }
       renderer.render(scene, filmCam);
     } else {
       controls.update();
@@ -1040,7 +1104,10 @@ function renderShotsTab() {
         <option value="fade" ${sh.transition === 'fade' ? 'selected' : ''}>تلاشي أسود</option></select>
       <label>موسيقى</label><select data-shot-mood="${sh.id}">
         <option value="" ${!sh.mood ? 'selected' : ''}>الافتراضية</option>
-        ${MOOD_KEYS.map(k => `<option value="${k}" ${sh.mood === k ? 'selected' : ''}>${moodName(k)}</option>`).join('')}</select></div>
+      <label>هزة</label><select data-shot-shake="${sh.id}">
+        <option value="" ${!sh.shake ? 'selected' : ''}>بدون</option>
+        <option value="0.5" ${sh.shake === 0.5 ? 'selected' : ''}>خفيفة</option>
+        <option value="1" ${sh.shake === 1 ? 'selected' : ''}>قوية</option></select></div>
       <div class="row"><label>تتبع المحدد</label><input type="checkbox" id="sh-follow-${sh.id}" style="width:18px;height:18px;accent-color:var(--accent)" ${getObj(S.selected) && getObj(S.selected).kind === 'char' ? '' : 'disabled'}></div>
       <button class="chip-btn sel" data-shot-key="${sh.id}" style="width:100%">📸 التقط الكاميرا الحالية @ ${S.time.toFixed(1)}ث</button>
       <div class="obj-list" style="max-height:80px;margin-top:6px">`;
@@ -1082,6 +1149,10 @@ function renderShotsTab() {
   panelBody.querySelectorAll('[data-shot-mood]').forEach(el => el.onchange = () => {
     const sh = S.shots.find(s => s.id === el.dataset.shotMood);
     sh.mood = el.value || null; toast('موسيقى اللقطة: ' + (el.value ? moodName(el.value) : 'الافتراضية')); saveLocal();
+  });
+  panelBody.querySelectorAll('[data-shot-shake]').forEach(el => el.onchange = () => {
+    const sh = S.shots.find(s => s.id === el.dataset.shotShake);
+    sh.shake = el.value ? +el.value : null; toast('هزة الكاميرا: ' + (sh.shake ? (sh.shake === 1 ? 'قوية 📳' : 'خفيفة') : 'بدون')); saveLocal();
   });
   panelBody.querySelectorAll('[data-del-shot]').forEach(el => el.onclick = () => {
     removeShot(el.dataset.delShot); renderPanel(); drawTimeline();
@@ -1351,6 +1422,11 @@ document.getElementById('btn-clear').onclick = () => {
 // ---------- شريط الزمن ----------
 document.getElementById('tl-play').onclick = () => S.playing ? pause() : play();
 document.getElementById('tl-stop').onclick = () => { pause(); seek(0); };
+document.getElementById('tl-slow').onclick = () => {
+  S.slowmo = !S.slowmo;
+  document.getElementById('tl-slow').classList.toggle('sel', S.slowmo);
+  toast(S.slowmo ? 'حركة بطيئة 🐢 (تنعكس في التصدير)' : 'سرعة عادية'); saveLocal();
+};
 document.getElementById('film-dur').oninput = e => {
   S.filmDur = +e.target.value;
   document.getElementById('film-dur-lbl').textContent = S.filmDur + ' ث';
@@ -1659,6 +1735,7 @@ function buildDemoChase() {
   addProp('arch', 5, -15); addProp('arch', -12, -5);
   addProp('obelisk', 14, -12); addProp('obelisk', -4, -22);
   addProp('rock', 6, 4); addProp('rock', -9, 9); addProp('palm', 18, 2); addProp('tent', -16, 14);
+  addProp('camel', -14, -8, 1.2); addProp('stall', 12, 10, 1.1);
   const runner = addCharacter('لص', { shirt: 0x2c2f45, pants: 0x1a1c28, skin: 0xc98f5e }, -20, 12);
   const guard = addCharacter('حارس', { shirt: 0x8a2020, pants: 0x3a2a1a }, -26, 16);
   runner.track.actions.push({ type: 'walk', t0: 0.5, t1: 6, fx: -20, fz: 12, tx: 0, tz: 4 });
@@ -1675,7 +1752,7 @@ function buildDemoChase() {
   const sh2 = addShot('بين الأطلال', 7, 15); sh2.transition = 'fade';
   shotKey(sh2, 7, [8, 2.5, 2], [10, 1.5, -5], 38, runner.id);
   shotKey(sh2, 15, [16, 3, 6], [16, 1.5, 0], 40, runner.id);
-  const sh3 = addShot('الخاتمة', 15, 25); sh3.transition = 'fade';
+  const sh3 = addShot('الخاتمة', 15, 25); sh3.transition = 'fade'; sh3.shake = 0.5;
   shotKey(sh3, 15, [24, 3.5, 14], [21, 1.5, 7], 42, runner.id);
   shotKey(sh3, 25, [10, 9, 22], [18, 2, 2], 52, null);
   S.music.mood = 'tension';
@@ -1945,4 +2022,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-    }
+                                                    }
