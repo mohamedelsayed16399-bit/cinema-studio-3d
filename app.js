@@ -1,6 +1,10 @@
 // استوديو السينما 3D — محرك المشاهد والشخصيات
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 export const S = {
   filmDur: 30, time: 0, playing: false,
@@ -12,10 +16,47 @@ export const S = {
   ambient: 0.55,
   spots: [],     // {id,color,intensity,pos:[x,y,z],target:[x,y,z]}
   selected: null,
+  grade: 0,          // فلتر لوني: 0 بدون، 1 سيبيا، 2 أبيض وأسود، 3 مشبع، 4 غروب دافئ
   title: 'فيلمي القصير'
 };
 let nid = 1;
 export const genId = () => 'o' + (nid++);
+
+// ---------- فلاتر لونية (تظهر في التصدير) ----------
+const GradeShader = {
+  uniforms: { tDiffuse: { value: null }, uMode: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform int uMode; varying vec2 vUv;
+    void main(){
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec3 col = c.rgb;
+      if (uMode == 1) col = vec3(dot(col, vec3(.393,.769,.189)), dot(col, vec3(.349,.686,.168)), dot(col, vec3(.272,.534,.131)));
+      else if (uMode == 2) { float g = dot(col, vec3(.299,.587,.114)); col = vec3(g) * 1.15; }
+      else if (uMode == 3) { float g = dot(col, vec3(.299,.587,.114)); col = clamp(mix(vec3(g), col, 1.65), 0., 1.) * 1.04; }
+      else if (uMode == 4) col *= vec3(1.14, 1.0, 0.82);
+      gl_FragColor = vec4(col, c.a);
+    }`
+};
+let composer = null, gradePass = null, renderPass = null;
+function ensureComposer() {
+  if (composer) return;
+  composer = new EffectComposer(renderer);
+  renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
+  gradePass = new ShaderPass(GradeShader);
+  composer.addPass(gradePass);
+  composer.addPass(new OutputPass());
+}
+function render3D(cam) {
+  if (S.grade) {
+    ensureComposer();
+    renderPass.camera = cam;
+    gradePass.uniforms.uMode.value = S.grade;
+    composer.render();
+  } else renderer.render(scene, cam);
+}
+export const GRADES = [[0, 'بدون 🎞️'], [1, 'سيبيا كلاسيك 📜'], [2, 'أبيض وأسود 🎬'], [3, 'ألوان مشبعة 🌈'], [4, 'غروب دافئ 🌇']];
 
 // ---------- renderer / scene ----------
 const canvas = document.getElementById('c3d');
@@ -674,7 +715,7 @@ export function serialize() {
     })),
     shots: S.shots, sfx: S.sfx,
     spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
-    bubbles: S.bubbles || [], slowmo: S.slowmo || false,
+    bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0,
   });
 }
 export function deserialize(json) {
@@ -697,6 +738,7 @@ export function deserialize(json) {
   S.narr = d.narr || [];
   S.bubbles = d.bubbles || [];
   S.slowmo = d.slowmo || false;
+  S.grade = d.grade || 0;
   const slBtn = document.getElementById('tl-slow'); if (slBtn) slBtn.classList.toggle('sel', S.slowmo);
   clearBubbleSprites();
   setWeather(d.weather || 'none');
@@ -791,14 +833,14 @@ function animate(now) {
         filmCam.rotation.x += Math.sin(S.time * 37) * s + Math.sin(S.time * 71) * s * 0.4;
         filmCam.rotation.y += Math.sin(S.time * 43 + 1.3) * s;
       }
-      renderer.render(scene, filmCam);
+      render3D(filmCam);
     } else {
       controls.update();
-      renderer.render(scene, camera);
+      render3D(camera);
     }
   } else {
     controls.update();
-    renderer.render(scene, camera);
+    render3D(camera);
   }
   updateTextOverlay(S.time);
   updateFade(S.time);
@@ -814,6 +856,7 @@ function resize() {
     renderer.setSize(w, h, false);
     camera.aspect = w / h; camera.updateProjectionMatrix();
     filmCam.aspect = w / h; filmCam.updateProjectionMatrix();
+    if (composer) composer.setSize(w, h);
   }
 }
 new ResizeObserver(resize).observe(canvas);
@@ -981,6 +1024,11 @@ function renderSceneTab() {
     <div class="row"><label>القميص</label><input type="color" id="nc-shirt" value="#3a6bd6">
     <label>البنطلون</label><input type="color" id="nc-pants" value="#2c2f45">
     <label>البشرة</label><input type="color" id="nc-skin" value="#e8b88a"></div>
+    <div class="row"><label>جاهز</label>
+      <button class="chip-btn" data-preset="فلاح|#f2ead8|#f2ead8|#b87850">🧑‍🌾 فلاح</button>
+      <button class="chip-btn" data-preset="عريس|#f5f5f5|#1a1c28|#b87850">🤵 عريس</button>
+      <button class="chip-btn" data-preset="طالبة|#d43a6a|#2c2f45|#e8b88a">👩‍🎓 طالبة</button>
+      <button class="chip-btn" data-preset="عسكري|#8a2020|#3a2a1a|#c98f5e">💂 حارس</button></div>
     <button class="chip-btn sel" id="nc-add" style="width:100%">إضافة الممثل للمشهد 🎭</button>
   </div>
   <div class="sec"><h4>🏺 إضافة ديكور</h4><div class="grid2" id="prop-grid">`;
@@ -1036,6 +1084,14 @@ function renderSceneTab() {
     }, (Math.random() * 10 - 5), (Math.random() * 10 - 5));
     select(o.id); toast('انضم ممثل جديد 🎭');
   };
+  panelBody.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => {
+    const [n, sh, pa, sk] = b.dataset.preset.split('|');
+    document.getElementById('nc-name').value = n;
+    document.getElementById('nc-shirt').value = sh;
+    document.getElementById('nc-pants').value = pa;
+    document.getElementById('nc-skin').value = sk;
+    toast('تعبئة جاهزة: ' + n + ' — اضغط إضافة');
+  });
   panelBody.querySelectorAll('[data-prop]').forEach(b => b.onclick = () => {
     const o = addProp(b.dataset.prop, (Math.random() * 16 - 8), (Math.random() * 16 - 8));
     if (o) { select(o.id); toast('أُضيف: ' + o.name); }
@@ -1231,6 +1287,8 @@ function renderLightTab() {
       <option value="rain" ${S.weather === 'rain' ? 'selected' : ''}>مطر 🌧️</option>
       <option value="snow" ${S.weather === 'snow' ? 'selected' : ''}>ثلج ❄️</option>
       <option value="dust" ${S.weather === 'dust' ? 'selected' : ''}>عاصفة رملية 🌪️</option></select></div>
+    <div class="row"><label>فلتر لوني</label><select id="grade-sel">
+      ${GRADES.map(([v, n]) => `<option value="${v}" ${S.grade === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
   </div>
   <div class="sec"><h4>🔦 كشافات تصوير</h4>
     <button class="chip-btn sel" id="spot-add" style="width:100%">＋ كشاف جديد</button>
@@ -1246,6 +1304,7 @@ function renderLightTab() {
   document.getElementById('sun-int').oninput = e => { S.sun.intensity = +e.target.value; applySun(); };
   document.getElementById('amb-int').oninput = e => { S.ambient = +e.target.value; applySun(); };
   document.getElementById('weather-sel').onchange = e => { setWeather(e.target.value); toast('الطقس: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
+  document.getElementById('grade-sel').onchange = e => { S.grade = +e.target.value; toast('الفلتر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('spot-add').onclick = () => {
     addSpot({ pos: [Math.random() * 10 - 5, 7, Math.random() * 8 + 2], color: 0xfff2cc, intensity: 60 });
     renderPanel();
@@ -1334,6 +1393,7 @@ function doExport(exW, exH) {
   // دقة التصدير
   renderer.setPixelRatio(1);
   renderer.setSize(exW, exH, false);
+  if (composer) { composer.setPixelRatio(1); composer.setSize(exW, exH); }
   camera.aspect = exW / exH; camera.updateProjectionMatrix();
   filmCam.aspect = exW / exH; filmCam.updateProjectionMatrix();
   const restoreView = () => {
@@ -2063,7 +2123,7 @@ function clearBubbleSprites() {
 
 // ---------- بوستر (صورة من الفيلم) ----------
 function capturePoster() {
-  renderer.render(scene, S.playing ? filmCam : camera);
+  render3D(S.playing ? filmCam : camera);
   renderer.autoClear = false; renderer.clearDepth();
   renderer.render(overlayScene, overlayCam);
   renderer.autoClear = true;
@@ -2091,4 +2151,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-    }
+}
