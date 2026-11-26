@@ -3155,6 +3155,52 @@ function buildDemoCamp() {
   seek(0); applySun();
 }
 
+function buildDemoEid() {
+  clearAll();
+  S.filmDur = 26; S.title = 'صباح العيد';
+  S.groundColor = 0xc2a878; S.skyColor = 0x9ad4f4; S.fogFar = 150; S.grade = 3; S.vig = 0.25; S.grain = 0.08; applyGround();
+  for (let i = 0; i < 7; i++) addProp('flag', -18 + i * 6, -6, 1.1);
+  for (let i = 0; i < 7; i++) addProp('flag', -18 + i * 6, 10, 1.1);
+  addProp('house', -22, -18, 1.8); addProp('house', 0, -22, 2.0); addProp('house', 22, -18, 1.7);
+  addProp('palm', -26, 4, 1.2); addProp('palm', 26, 6, 1.3); addProp('stall', -10, 14, 1.2); addProp('stall', 12, 15, 1.2);
+  addProp('fountain', 0, -9, 0.9);
+  const k1 = addCharacter('يوسف', { shirt: 0x3ac26a, pants: 0x2c2f45, skin: 0xd9a06a, hair: 0x1a1a1a }, -10, 3);
+  const k2 = addCharacter('مريم', { shirt: 0xf26ea0, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x2a1810 }, -8, 4);
+  const k3 = addCharacter('عمر', { shirt: 0xf2c230, pants: 0x2c3a6a, skin: 0xd9a06a, hair: 0x1a1a1a }, 8, 3);
+  const dad = addCharacter('بابا', { shirt: 0xeeeeee, pants: 0x4a4030, skin: 0xc98f5e, hair: 0x222222 }, 14, 5);
+  k1.track.actions.push({ type: 'walk', t0: 1, t1: 7, fx: -10, fz: 3, tx: 2, tz: 3 });
+  k1.track.actions.push({ type: 'gesture', name: 'jump', time: 8, dur: 2 });
+  k2.track.actions.push({ type: 'walk', t0: 1.5, t1: 7.5, fx: -8, fz: 4, tx: 3, tz: 4.5 });
+  k2.track.actions.push({ type: 'gesture', name: 'dance', time: 14, dur: 6 });
+  k3.track.actions.push({ type: 'walk', t0: 2, t1: 8, fx: 8, fz: 3, tx: 4, tz: 3.5 });
+  k3.track.actions.push({ type: 'gesture', name: 'cheer', time: 10, dur: 3 });
+  dad.track.actions.push({ type: 'walk', t0: 6, t1: 12, fx: 14, fz: 5, tx: 6, tz: 6 });
+  dad.track.actions.push({ type: 'gesture', name: 'wave', time: 12.5, dur: 3 });
+  dad.track.actions.push({ type: 'gesture', name: 'clap', time: 20, dur: 4 });
+  [k1, k2, k3, dad].forEach(pinWalks);
+  addCrowd(8, 0, 6);
+  const sh1 = addShot('الصباح', 0, 9); sh1.transition = 'fade';
+  applyCamPreset(sh1, 'dollyin', [0, 0, 4], null);
+  const sh2 = addShot('العيدية', 9, 18); sh2.transition = 'fade';
+  applyCamPreset(sh2, 'hero', [3, 0, 4], k3.id);
+  const sh3 = addShot('الفرحة', 18, 26); sh3.transition = 'fade';
+  applyCamPreset(sh3, 'crane', [0, 0, 4], null);
+  S.music.mood = 'happy';
+  S.sfx = [ { id: genId(), time: 0.5, type: 'bell' }, { id: genId(), time: 9.5, type: 'magic' }, { id: genId(), time: 18, type: 'boom' } ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'صباح العيد', style: 'card', color: '#ffe080' },
+    { id: genId(), time: 20, dur: 4, text: 'عيد سعيد وكل سنة وانتو طيبين 🎉', style: 'title', color: '#ffffff' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: k1.id, time: 1.5, dur: 2.4, text: 'عيد سعيد يا جماعة!' },
+    { id: genId(), objId: dad.id, time: 12.7, dur: 2.6, text: 'العيدية يا ولاد!' },
+    { id: genId(), objId: k3.id, time: 10.2, dur: 2.4, text: 'هييييه!' },
+  ];
+  S.trails = 'spark'; S.weather = 'none'; setWeather('none');
+  S.sun.tod = 0.33; S.sun.intensity = 1.8; S.ambient = 1.5;
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -3237,6 +3283,7 @@ const GALLERY = [
   { e: '🌙', n: 'ليلة رمضان في الحارة', d: 'فوانيس ومسحراتي وتوك توك', f: () => buildDemoRamadan(), c: ['مصر', 'ليل', 'بهجة'], g: ['#c98a2a', '#1a1030'] },
   { e: '🎓', n: 'حفل التخرج', d: 'تكريم واحتفال وقبعات', f: () => buildDemoGrad(), c: ['بهجة', 'ليل'], g: ['#7a2ad6', '#1a1a2a'] },
   { e: '🕌', n: 'مولد الحي', d: 'أنوار وزحمة ومرور سريع بالكاميرا', f: () => buildDemoMoulid(), c: ['مصر', 'ليل', 'بهجة'], g: ['#ff9ad0', '#1c1030'] },
+  { e: '🎉', n: 'صباح العيد', d: 'زينة وعيدية وفرحة الأطفال', f: () => buildDemoEid(), c: ['مصر', 'بهجة'], g: ['#f2b84a', '#2a8ad0'] },
   { e: '⛺', n: 'ليلة تخييم', d: 'نار ونجوم وحكاية الجد في الصحراء', f: () => buildDemoCamp(), c: ['مصر', 'ليل', 'دراما'], g: ['#d98a3a', '#0a0a2a'] },
   { e: '🧺', n: 'سوق الجمعة', d: 'زحمة وبياعين وتوك توك بيعدي جنبك', f: () => buildDemoSouk(), c: ['مصر', 'بهجة'], g: ['#e0a040', '#6a4a2a'] },
   { e: '⚓', n: 'فجر المرسى', d: 'مراكب الصيادين تبحر مع شروق الشمس', f: () => buildDemoHarbor(), c: ['مصر', 'دراما'], g: ['#2a78a8', '#f0b070'] },
