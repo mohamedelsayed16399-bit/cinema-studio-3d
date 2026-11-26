@@ -2598,6 +2598,68 @@ function buildDemoUnder() {
   seek(0); applySun();
 }
 
+function buildDemoCorniche() {
+  clearAll();
+  S.filmDur = 26; S.title = 'غروب الكورنيش';
+  S.groundColor = 0xc9b48c; S.skyColor = 0xf0a060; S.fogFar = 140; S.grade = 4; applyGround();
+  addProp('boat', -22, -26, 1.5); addProp('boat', 6, -34, 1.2); addProp('boat', 28, -22, 1.3);
+  for (let i = 0; i < 5; i++) addProp('streetlamp', -20 + i * 10, 6, 1);
+  addProp('palm', -14, -18, 1.2); addProp('palm', 12, -20, 1.3); addProp('palm', 26, -16);
+  addProp('stall', 18, 2, 1.1); addProp('house', -6, 26, 1.4); addProp('house', 14, 28, 1.6);
+  addProp('rock', 0, -12, 1.4); addProp('rock', -18, -10);
+  const ball = addProp('ball', -2, 4);
+  const a = addCharacter('أحمد', { shirt: 0x2a7bd6, pants: 0x2c2f45, skin: 0xd9a06a, hair: 0x1a1a1a }, -18, 2);
+  const m = addCharacter('منى', { shirt: 0xd64a7a, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x3a1c10 }, -17, 3);
+  const k = addCharacter('يوسف', { shirt: 0xf2c230, pants: 0x2c3a6a, skin: 0xd9a06a, hair: 0x1a1a1a }, 4, 4);
+  const v = addCharacter('عم سيد', { shirt: 0xeeeeee, pants: 0x6a5a3a, skin: 0xb8804a, hair: 0x888888 }, 19, 3);
+  a.track.actions.push({ type: 'walk', t0: 0.5, t1: 8, fx: -18, fz: 2, tx: -4, tz: 2 });
+  a.track.actions.push({ type: 'gesture', name: 'point', time: 8.5, dur: 2.5 });
+  a.track.actions.push({ type: 'walk', t0: 11, t1: 17, fx: -4, fz: 2, tx: 10, tz: 3 });
+  a.track.actions.push({ type: 'gesture', name: 'wave', time: 18, dur: 2.5 });
+  a.track.actions.push({ type: 'gesture', name: 'cheer', time: 21.5, dur: 3 });
+  m.track.actions.push({ type: 'walk', t0: 1, t1: 8.5, fx: -17, fz: 3, tx: -3, tz: 3.2 });
+  m.track.actions.push({ type: 'gesture', name: 'clap', time: 9, dur: 2.5 });
+  m.track.actions.push({ type: 'walk', t0: 11.5, t1: 17.5, fx: -3, fz: 3.2, tx: 11, tz: 4 });
+  m.track.actions.push({ type: 'gesture', name: 'wave', time: 18.3, dur: 2.5 });
+  m.track.actions.push({ type: 'gesture', name: 'dance', time: 21.5, dur: 4 });
+  k.track.actions.push({ type: 'walk', t0: 0.5, t1: 5, fx: 4, fz: 4, tx: -2, tz: 5 });
+  k.track.actions.push({ type: 'gesture', name: 'jump', time: 5.3, dur: 2 });
+  k.track.actions.push({ type: 'walk', t0: 8, t1: 14, fx: -2, fz: 5, tx: 14, tz: 5 });
+  k.track.actions.push({ type: 'gesture', name: 'cheer', time: 14.5, dur: 3 });
+  v.track.actions.push({ type: 'gesture', name: 'wave', time: 2, dur: 3 });
+  v.track.actions.push({ type: 'gesture', name: 'point', time: 12, dur: 2.5 });
+  v.track.actions.push({ type: 'gesture', name: 'clap', time: 19, dur: 3 });
+  [a, m, k].forEach(pinWalks);
+  const sh1 = addShot('الكورنيش', 0, 9); sh1.transition = 'fade';
+  shotKey(sh1, 0, [-30, 3, 18], [-14, 1.8, 2], 50, a.id);
+  shotKey(sh1, 9, [-8, 2.4, 12], [-2, 1.6, 2], 42, a.id);
+  const sh2 = addShot('الشاطئ', 9, 18); sh2.transition = 'fade';
+  applyCamPreset(sh2, 'orbit', [4, 0, 4], null);
+  const sh3 = addShot('الغروب', 18, 26); sh3.transition = 'fade';
+  shotKey(sh3, 18, [8, 1.2, 12], [10, 3, 3], 48, null);
+  shotKey(sh3, 26, [6, 9, 22], [8, 4, -6], 56, null);
+  S.music.mood = 'calm';
+  S.sfx = [
+    { id: genId(), time: 0.4, type: 'wind' }, { id: genId(), time: 5.4, type: 'whoosh' },
+    { id: genId(), time: 14.7, type: 'bell' }, { id: genId(), time: 21.7, type: 'magic' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'غروب الكورنيش', style: 'card', color: '#ffb866' },
+    { id: genId(), time: 22.5, dur: 3, text: 'إسكندرية… حكاية كل غروب', style: 'title', color: '#ffe4a8' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: a.id, time: 8.6, dur: 2, text: 'بصي الشمس بتغرق في البحر!' },
+    { id: genId(), objId: m.id, time: 10.8, dur: 2.2, text: 'يا سلام… الجو حلو أوي' },
+    { id: genId(), objId: v.id, time: 12.2, dur: 2.4, text: 'ذرة مشوي يا بشوات!' },
+    { id: genId(), objId: k.id, time: 14.7, dur: 2.2, text: 'عايز ذرة يا بابا!' },
+  ];
+  S.trails = 'dust';
+  S.weather = 'none'; setWeather('none');
+  S.sun.tod = 0.46; S.sun.intensity = 1.3; S.ambient = 0.8;
+  addSpot({ pos: [6, 12, 8], color: 0xffd9a0, intensity: 55, target: [4, 0, 3] });
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -2676,6 +2738,7 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '🚨 سرقة المتحف', fn: () => { buildDemoHeist(); refreshAfterLoad(); overlay(false); toast('مشهد: سرقة المتحف ▶'); } },
     { t: '🌊 أعماق البحر', fn: () => { buildDemoUnder(); refreshAfterLoad(); overlay(false); toast('مشهد: أعماق البحر ▶'); } },
     { t: '🚀 رحلة إلى القمر', fn: () => { buildDemoSpace(); refreshAfterLoad(); overlay(false); toast('مشهد: رحلة إلى القمر ▶'); } },
+    { t: '🌇 غروب الكورنيش', fn: () => { buildDemoCorniche(); refreshAfterLoad(); overlay(false); toast('مشهد: غروب الكورنيش ▶'); } },
     { t: 'إلغاء', fn: () => overlay(false) },
   ]);
 };
