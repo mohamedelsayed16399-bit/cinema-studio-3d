@@ -706,7 +706,7 @@ export function activeShot(t) {
 // ---------- حركات كاميرا جاهزة ----------
 export const CAM_PRESETS = [
   ['orbit', '🔄 دوران حول الهدف'], ['dollyin', '🔍 اقتراب بطيء'], ['pullout', '↔️ ابتعاد وكشف'],
-  ['crane', '🏗️ رافعة للأعلى'], ['whip', '⚡ تتبع جانبي'], ['hero', '🦸 لقطة بطولية من تحت'],
+  ['crane', '🏗️ رافعة للأعلى'], ['whip', '⚡ تتبع جانبي'], ['hero', '🦸 لقطة بطولية من تحت'], ['driveby', '🚗 مرور سريع بجانب الكاميرا'],
 ];
 export function applyCamPreset(sh, type, center, lookObj) {
   const [cx, cy, cz] = center, d = Math.max(0.5, sh.t1 - sh.t0), t0 = sh.t0;
@@ -724,6 +724,8 @@ export function applyCamPreset(sh, type, center, lookObj) {
     add(t0, [cx - 5, cy + 1.2, cz + 8], look, 42, false); add(t0 + d, [cx + 2, cy + 15, cz + 12], [cx, cy, cz], 52, false);
   } else if (type === 'whip') {
     add(t0, [cx - 14, cy + 2, cz + 6], look, 40, true); add(t0 + d, [cx + 14, cy + 2, cz + 6], look, 40, true);
+  } else if (type === 'driveby') {
+    add(t0, [cx - 2, cy + 0.6, cz + 5], [cx - 12, cy + 1.2, cz], 58, true); add(t0 + d * 0.5, [cx - 2, cy + 0.6, cz + 5], [cx, cy + 1.2, cz], 48, true); add(t0 + d, [cx - 2, cy + 0.6, cz + 5], [cx + 12, cy + 1.2, cz], 58, true);
   } else if (type === 'hero') {
     add(t0, [cx + 2, cy + 0.3, cz + 7], [cx, cy + 2.4, cz], 62, false); add(t0 + d, [cx - 2, cy + 0.5, cz + 4.5], [cx, cy + 2.6, cz], 52, false);
   }
@@ -2832,6 +2834,62 @@ function buildDemoGrad() {
   seek(0); applySun();
 }
 
+function buildDemoMoulid() {
+  clearAll();
+  S.filmDur = 26; S.title = 'مولد الحي';
+  S.groundColor = 0x8a7a5a; S.skyColor = 0x1c1030; S.fogFar = 120; S.grade = 3; applyGround();
+  for (let i = 0; i < 9; i++) addProp('lantern', -24 + i * 6, 9, 1);
+  for (let i = 0; i < 9; i++) addProp('lantern', -24 + i * 6, -9, 1);
+  addProp('flag', -12, -8, 1.2); addProp('flag', 12, -8, 1.2);
+  addProp('stall', -14, -5, 1.2); addProp('stall', -2, -6, 1.2); addProp('stall', 14, -5, 1.2);
+  addProp('house', -20, -20, 1.7); addProp('house', 0, -22, 1.9); addProp('house', 22, -20, 1.6);
+  addProp('house', -14, 22, 1.5); addProp('house', 12, 23, 1.7);
+  addProp('palm', -28, 6, 1.1); addProp('palm', 28, 7, 1.2);
+  addProp('tuktuk', -32, 3, 1); addProp('car', 34, 5, 1);
+  const tk = S.objects.find(o => o.propType === 'tuktuk');
+  const car = S.objects.find(o => o.propType === 'car');
+  const a = addCharacter('حسن', { shirt: 0x2a9d5c, pants: 0x2c2f45, skin: 0xd9a06a, hair: 0x1a1a1a }, -8, 1);
+  const b = addCharacter('ندى', { shirt: 0xe0558a, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x2a1810 }, 8, 1.5);
+  const c = addCharacter('الحاج رمضان', { shirt: 0xf1ead2, pants: 0x4a4030, skin: 0xb8804a, hair: 0x999999 }, 0, -3);
+  tk.track.actions.push({ type: 'walk', t0: 2, t1: 9, fx: -32, fz: 3, tx: 32, tz: 3 });
+  car.track.actions.push({ type: 'walk', t0: 11, t1: 17, fx: 34, fz: 5, tx: -34, tz: 5 });
+  a.track.actions.push({ type: 'gesture', name: 'wave', time: 1, dur: 2.5 });
+  a.track.actions.push({ type: 'gesture', name: 'dance', time: 17, dur: 6 });
+  b.track.actions.push({ type: 'gesture', name: 'cheer', time: 3, dur: 3 });
+  b.track.actions.push({ type: 'gesture', name: 'dance', time: 17, dur: 6 });
+  c.track.actions.push({ type: 'gesture', name: 'point', time: 9.5, dur: 2.5 });
+  c.track.actions.push({ type: 'gesture', name: 'clap', time: 13, dur: 3 });
+  [tk, car, a, b, c].forEach(pinWalks);
+  addCrowd(10, 0, 4);
+  const sh1 = addShot('الشارع', 0, 9); sh1.transition = 'fade';
+  shotKey(sh1, 0, [-6, 3, 20], [0, 2, -2], 52, null);
+  shotKey(sh1, 9, [10, 2.2, 14], [2, 1.5, 3], 44, tk.id);
+  const sh2 = addShot('مرور العربية', 9, 17); sh2.transition = 'cut';
+  applyCamPreset(sh2, 'driveby', [0, 0, 5], car.id);
+  const sh3 = addShot('الرقص', 17, 26); sh3.transition = 'fade'; sh3.shake = 0.3;
+  applyCamPreset(sh3, 'orbit', [0, 0, 1], null);
+  S.music.mood = 'epic';
+  S.sfx = [
+    { id: genId(), time: 0.4, type: 'bell' }, { id: genId(), time: 9, type: 'whoosh' },
+    { id: genId(), time: 13, type: 'boom' }, { id: genId(), time: 17, type: 'magic' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'مولد الحي', style: 'card', color: '#ffc866' },
+    { id: genId(), time: 20, dur: 4, text: 'كل سنة وانتو طيبين ✨', style: 'title', color: '#ffe4a8' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: a.id, time: 1.2, dur: 2.2, text: 'المولد بدأ يا جماعة!' },
+    { id: genId(), objId: c.id, time: 9.6, dur: 2.4, text: 'ابعدوا عن الطريق!' },
+    { id: genId(), objId: b.id, time: 3.2, dur: 2.2, text: 'الله على الأنوار!' },
+  ];
+  S.trails = 'dust';
+  S.weather = 'firefly'; setWeather('firefly');
+  S.sun.tod = 0.78; S.sun.intensity = 0.5; S.ambient = 1.1;
+  addSpot({ pos: [-8, 12, 6], color: 0xff9ad0, intensity: 60, target: [-4, 0, 2], sweep: { base: -4, speed: 0.9, range: 8 } });
+  addSpot({ pos: [8, 12, 6], color: 0x9ad0ff, intensity: 60, target: [4, 0, 2], pulse: { base: 40, amp: 30 } });
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -2918,6 +2976,7 @@ document.getElementById('btn-demo').onclick = () => {
       const tr = ['dust', 'smoke', 'spark', 'none'][Math.floor(Math.random() * 4)]; S.trails = tr;
       refreshAfterLoad(); overlay(false); toast('🎲 مفاجأة: ' + S.title + ' ▶');
     } },
+    { t: '🕌 مولد الحي', fn: () => { buildDemoMoulid(); refreshAfterLoad(); overlay(false); toast('مشهد: مولد الحي ▶'); } },
     { t: '🎓 حفل التخرج', fn: () => { buildDemoGrad(); refreshAfterLoad(); overlay(false); toast('مشهد: حفل التخرج ▶'); } },
     { t: '🌙 ليلة رمضان في الحارة', fn: () => { buildDemoRamadan(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة رمضان ▶'); } },
     { t: '🌇 غروب الكورنيش', fn: () => { buildDemoCorniche(); refreshAfterLoad(); overlay(false); toast('مشهد: غروب الكورنيش ▶'); } },
