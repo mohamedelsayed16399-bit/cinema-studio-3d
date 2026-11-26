@@ -278,6 +278,11 @@ export const PROP_DEFS = {
       g.add(mesh(new THREE.CylinderGeometry(0.09, 0.08, 1.3, 6), MAT(0xb8874e), dx, 0.65, dz));
     return g;
   }},
+  ball: { name: 'كورة', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.SphereGeometry(0.32, 12, 10), MAT(0xf2ead8), 0, 0.32, 0));
+    return g;
+  }},
   bike: { name: 'موتوسيكل', make() {
     const g = new THREE.Group();
     const w1 = mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 16), MAT(0x1a1c22), -0.85, 0.55, 0);
@@ -1490,6 +1495,12 @@ function makeTextSprite(text, style, color) {
     g.font = '900 170px Cairo, sans-serif';
     g.shadowColor = '#000'; g.shadowBlur = 26; g.shadowOffsetY = 6;
     g.fillText(text, c.width / 2, c.height / 2, c.width - 160);
+  } else if (style === 'outline') {
+    g.font = '900 160px Cairo, sans-serif';
+    g.lineWidth = 18; g.strokeStyle = '#0a0a12'; g.lineJoin = 'round';
+    g.strokeText(text, c.width / 2, c.height / 2, c.width - 160);
+    g.fillStyle = color || '#f5b942';
+    g.fillText(text, c.width / 2, c.height / 2, c.width - 160);
   } else {
     g.font = '700 96px Cairo, sans-serif';
     const w = Math.min(c.width - 120, g.measureText(text).width + 120);
@@ -1523,6 +1534,7 @@ function updateTextOverlay(t) {
     textSprite = makeTextSprite(at.text, at.style, at.color);
     if (at.style === 'card') { textSprite.scale.set(2, 1, 1); textSprite.position.set(0, 0, 0); }
     else if (at.style === 'title') { textSprite.scale.set(1.7, 0.425, 1); textSprite.position.set(0, 0.45, 0); }
+    else if (at.style === 'outline') { textSprite.scale.set(1.7, 0.425, 1); textSprite.position.set(0, 0.42, 0); }
     else { textSprite.scale.set(1.6, 0.4, 1); textSprite.position.set(0, -0.62, 0); }
     overlayScene.add(textSprite);
   }
@@ -1697,6 +1709,7 @@ function renderTextsTab() {
     <div class="row"><label>النص</label><input type="text" id="tx-text" placeholder="اكتب العنوان أو الترجمة…"></div>
     <div class="row"><label>النوع</label><select id="tx-style">
       <option value="title">عنوان علوي كبير</option>
+      <option value="outline">عنوان بحدود سوداء</option>
       <option value="sub">ترجمة سفلية</option>
       <option value="card">بطاقة سوداء كاملة</option></select></div>
     <div class="row"><label>اللون</label><input type="color" id="tx-color" value="#ffffff">
@@ -1705,7 +1718,7 @@ function renderTextsTab() {
   </div>
   <div class="sec"><h4>📋 النصوص المضافة</h4><div class="obj-list">`;
   S.texts.forEach((t, i) => {
-    const styleName = t.style === 'title' ? 'عنوان' : t.style === 'card' ? 'بطاقة' : 'ترجمة';
+    const styleName = t.style === 'title' ? 'عنوان' : t.style === 'card' ? 'بطاقة' : t.style === 'outline' ? 'محدد' : 'ترجمة';
     html += `<div class="obj-item"><span class="nm">📝 [${styleName}] ${esc(t.text)} @${t.time.toFixed(1)}ث</span><span class="x" data-del-tx="${i}">✕</span></div>`;
   });
   html += `</div></div>`;
@@ -1871,6 +1884,61 @@ function buildDemoWedding() {
   addSpot({ pos: [4, 6, 5], color: 0xffc060, intensity: 80, target: [0, 1, 0] });
   seek(0); applySun();
 }
+function buildDemoFootball() {
+  clearAll();
+  S.filmDur = 25; S.title = 'ماتش في الحارة';
+  addProp('house', -16, 6); addProp('house', 16, 6); addProp('house', 0, 18, 1.3);
+  addProp('streetlamp', -8, 10); addProp('streetlamp', 8, 10);
+  addProp('stall', -12, -8); addProp('bike', 11, -6);
+  const ball = addProp('ball', 0, 0, 1);
+  const p1 = addCharacter('شيكو', { shirt: 0xc23a3a, pants: 0x1a1c28, skin: 0xb87850 }, -4, 2);
+  const p2 = addCharacter('مودي', { shirt: 0x3a6ad4, pants: 0x2c2f45 }, 4, 1);
+  const keeper = addCharacter('الحارس', { shirt: 0x2a8a6a, pants: 0x1a1c28 }, 0, -12);
+  const fan = addCharacter('مشجع', { shirt: 0xe8a23a, pants: 0x2c2f45 }, -8, 5);
+  p1.track.actions.push({ type: 'walk', t0: 1, t1: 4, fx: -4, fz: 2, tx: -1, tz: 0.5 });
+  p1.track.actions.push({ type: 'walk', t0: 5, t1: 10, fx: -1, fz: 0.5, tx: 3, tz: -4 });
+  p1.track.actions.push({ type: 'gesture', name: 'cheer', time: 12.5, dur: 3.5 });
+  p1.track.actions.push({ type: 'gesture', name: 'run', time: 16, dur: 2.5 });
+  p2.track.actions.push({ type: 'walk', t0: 1.5, t1: 5, fx: 4, fz: 1, tx: 0.5, tz: 0 });
+  p2.track.actions.push({ type: 'gesture', name: 'cry', time: 13, dur: 3 });
+  p2.track.actions.push({ type: 'gesture', name: 'think', time: 18, dur: 3 });
+  keeper.track.actions.push({ type: 'gesture', name: 'jump', time: 11.6, dur: 1.4 });
+  keeper.track.actions.push({ type: 'gesture', name: 'faint', time: 14, dur: 4 });
+  fan.track.actions.push({ type: 'gesture', name: 'clap', time: 12.8, dur: 3 });
+  fan.track.actions.push({ type: 'gesture', name: 'cheer', time: 16.5, dur: 3 });
+  // مسار الكورة
+  addKey(ball, 0, -0.5, 1, 0); addKey(ball, 10, 2.5, -3.5, 0);
+  addKey(ball, 11.5, 0.5, -9, 0); addKey(ball, 12.2, 0, -11.5, 0);
+  addKey(ball, 15, 1.5, -10, 0);
+  const sh1 = addShot('سيطرة شيكو', 0, 10); sh1.transition = 'fade';
+  shotKey(sh1, 0, [0, 9, 16], [0, 1, 0], 50);
+  shotKey(sh1, 10, [5, 3.5, 7], [1, 1, -2], 44, p1.id);
+  const sh2 = addShot('الجووول', 10, 15); sh2.transition = 'fade'; sh2.shake = 1; sh2.mood = 'epic';
+  shotKey(sh2, 10, [6, 2, 2], [0, 1, -10], 42);
+  shotKey(sh2, 15, [-5, 2.5, -4], [0, 1, -11], 40);
+  const sh3 = addShot('الاحتفال', 15, 25); sh3.transition = 'fade';
+  shotKey(sh3, 15, [4, 2.5, 6], [-1, 1.4, 2], 42, p1.id);
+  shotKey(sh3, 25, [0, 10, 14], [0, 1.5, 2], 52);
+  S.music.mood = 'happy';
+  S.sfx = [
+    { id: genId(), time: 1, type: 'crowd' }, { id: genId(), time: 10.2, type: 'whoosh' },
+    { id: genId(), time: 12.3, type: 'crowd' }, { id: genId(), time: 12.6, type: 'bell' },
+    { id: genId(), time: 16, type: 'crowd' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.3, dur: 2.8, text: 'ماتش في الحارة', style: 'card', color: '#4ecdc4' },
+    { id: genId(), time: 12.2, dur: 2.6, text: 'جوووول!', style: 'outline', color: '#f5b942' },
+    { id: genId(), time: 22, dur: 2.6, text: 'النهاية', style: 'title', color: '#4ecdc4' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: fan.id, time: 12.8, dur: 2.6, text: 'يابني انت وحش!' },
+    { id: genId(), objId: p1.id, time: 16.5, dur: 2.8, text: 'هاتوا اللي بعده!' },
+    { id: genId(), objId: p2.id, time: 19, dur: 2.6, text: 'العودة في الشوط التاني' },
+  ];
+  S.sun.tod = 0.6; S.sun.intensity = 1.1;
+  addSpot({ pos: [0, 7, 4], color: 0xffe0a0, intensity: 60, target: [0, 1, 0] });
+  seek(0); applySun();
+}
 
 // ---------- اختيار القالب ----------
 document.getElementById('btn-demo').onclick = () => {
@@ -1879,6 +1947,7 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '🗡️ مطاردة في الصحراء', fn: () => { buildDemoChase(); refreshAfterLoad(); overlay(false); toast('مشهد: مطاردة في الصحراء ▶'); } },
     { t: '🌙 ليلة على النيل', fn: () => { buildDemoNile(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة على النيل ▶'); } },
     { t: '💃 فرح في الحارة', fn: () => { buildDemoWedding(); refreshAfterLoad(); overlay(false); toast('مشهد: فرح في الحارة ▶'); } },
+    { t: '⚽ ماتش في الحارة', fn: () => { buildDemoFootball(); refreshAfterLoad(); overlay(false); toast('مشهد: ماتش في الحارة ▶'); } },
     { t: 'إلغاء', fn: () => overlay(false) },
   ]);
 };
@@ -2022,4 +2091,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-                                                    }
+    }
