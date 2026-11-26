@@ -1758,7 +1758,7 @@ document.getElementById('btn-redo').onclick = () => redo();
 S.bubbles = S.bubbles || [];   // {id, objId, time, dur, text}
 
 // ---------- سحب العناصر داخل العرض ----------
-let dragObj = null;
+var dragObj = null;
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const viewportEl = document.getElementById('viewport');
 viewportEl.addEventListener('pointerdown', e => {
@@ -1801,7 +1801,7 @@ addEventListener('pointerup', () => {
 }, true);
 
 // ---------- فقاعات الكلام ----------
-const bubbleSprites = new Map();
+var bubbleSprites = new Map();
 function makeBubbleTexture(text) {
   const c = document.createElement('canvas');
   c.width = 640; c.height = 300;
@@ -1851,6 +1851,7 @@ function updateBubbles(t) {
   }
 }
 function clearBubbleSprites() {
+  if (!bubbleSprites) return;
   for (const sp of bubbleSprites.values()) {
     sp.parent?.remove(sp);
     sp.material.map.dispose(); sp.material.dispose();
@@ -1877,7 +1878,7 @@ function capturePoster() {
 document.getElementById('btn-poster')?.addEventListener('click', capturePoster);
 
 // ---------- موسيقى لكل لقطة ----------
-let lastShotId = null;
+var lastShotId = null;
 function checkShotMood() {
   const sh = activeShot(S.time);
   if (!sh) return;
@@ -1888,4 +1889,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-             }
+}
