@@ -2999,6 +2999,54 @@ function buildDemoSquare() {
   seek(0); applySun();
 }
 
+function buildDemoHarbor() {
+  clearAll();
+  S.filmDur = 26; S.title = 'فجر المرسى';
+  S.groundColor = 0x4fa6d0; S.skyColor = 0xf4b27a; S.fogFar = 170; S.grade = 4; S.vig = 0.45; S.grain = 0.15; applyGround();
+  // رصيف الصيادين
+  for (let i = 0; i < 6; i++) addProp('bench', -12 + i * 5, 6, 1);
+  addProp('streetlamp', -14, 8, 1); addProp('streetlamp', 0, 8, 1); addProp('streetlamp', 14, 8, 1);
+  addProp('rock', -20, 12, 1.6); addProp('rock', 22, 14, 1.8); addProp('palm', -22, 14, 1.3); addProp('palm', 24, 16, 1.2);
+  addProp('kiosk', 10, 14, 1.1); addProp('house', -8, 26, 1.8); addProp('house', 12, 28, 1.7);
+  addProp('boat', -16, -6, 1.4); addProp('boat', 4, -10, 1.7); addProp('boat', 20, -4, 1.3);
+  const boats = S.objects.filter(o => o.propType === 'boat');
+  boats[0].track.actions.push({ type: 'walk', t0: 3, t1: 24, fx: -16, fz: -6, tx: -30, tz: -40 });
+  boats[1].track.actions.push({ type: 'walk', t0: 5, t1: 25, fx: 4, fz: -10, tx: 6, tz: -50 });
+  boats[2].track.actions.push({ type: 'walk', t0: 7, t1: 25, fx: 20, fz: -4, tx: 34, tz: -38 });
+  const a = addCharacter('الريّس إبراهيم', { shirt: 0x1d4f8a, pants: 0x2a2a30, skin: 0xb8804a, hair: 0x888888 }, -4, 4);
+  const b = addCharacter('علي', { shirt: 0xe0a02a, pants: 0x3a3550, skin: 0xd9a06a, hair: 0x1a1a1a }, 3, 4.5);
+  const c = addCharacter('أم علي', { shirt: 0xb83a6a, pants: 0x3a3040, skin: 0xd9a06a, hair: 0x2a1810 }, 8, 3);
+  a.track.actions.push({ type: 'gesture', name: 'point', time: 2, dur: 3 });
+  a.track.actions.push({ type: 'gesture', name: 'wave', time: 12, dur: 4 });
+  b.track.actions.push({ type: 'walk', t0: 2, t1: 8, fx: 3, fz: 4.5, tx: -2, tz: 4.5 });
+  b.track.actions.push({ type: 'gesture', name: 'wave', time: 14, dur: 4 });
+  c.track.actions.push({ type: 'gesture', name: 'wave', time: 16, dur: 4 });
+  c.track.actions.push({ type: 'gesture', name: 'clap', time: 21, dur: 3 });
+  [...boats, a, b, c].forEach(pinWalks);
+  const sh1 = addShot('الفجر', 0, 9); sh1.transition = 'fade';
+  shotKey(sh1, 0, [0, 2, 24], [0, 4, -20], 58, null);
+  shotKey(sh1, 9, [-6, 2.6, 16], [-2, 1.8, 4], 46, a.id);
+  const sh2 = addShot('الإبحار', 9, 18); sh2.transition = 'fade';
+  applyCamPreset(sh2, 'pullout', [0, 0, -8], null);
+  const sh3 = addShot('الوداع', 18, 26); sh3.transition = 'fade';
+  shotKey(sh3, 18, [0, 1.8, 14], [2, 2, 4], 50, null);
+  shotKey(sh3, 26, [10, 7, 24], [0, 3, -10], 54, null);
+  S.music.mood = 'calm';
+  S.sfx = [ { id: genId(), time: 3, type: 'whoosh' }, { id: genId(), time: 12, type: 'bell' } ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'فجر المرسى', style: 'card', color: '#ffe0a0' },
+    { id: genId(), time: 21, dur: 4, text: 'رزق وفير يا رب 🎣', style: 'title', color: '#ffffff' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: a.id, time: 2.2, dur: 2.6, text: 'يلا يا رجالة، البحر هادي!' },
+    { id: genId(), objId: b.id, time: 14.2, dur: 2.4, text: 'ربنا يحميكم!' },
+    { id: genId(), objId: c.id, time: 16.2, dur: 2.4, text: 'ترجعوا بالسلامة' },
+  ];
+  S.trails = 'none'; S.weather = 'dust'; setWeather('dust');
+  S.sun.tod = 0.08; S.sun.intensity = 1.7; S.ambient = 1.3; S.sun.base = 0.08; S.sun.tl = { on: true, to: 0.3 };
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -3081,6 +3129,7 @@ const GALLERY = [
   { e: '🌙', n: 'ليلة رمضان في الحارة', d: 'فوانيس ومسحراتي وتوك توك', f: () => buildDemoRamadan(), c: ['مصر', 'ليل', 'بهجة'], g: ['#c98a2a', '#1a1030'] },
   { e: '🎓', n: 'حفل التخرج', d: 'تكريم واحتفال وقبعات', f: () => buildDemoGrad(), c: ['بهجة', 'ليل'], g: ['#7a2ad6', '#1a1a2a'] },
   { e: '🕌', n: 'مولد الحي', d: 'أنوار وزحمة ومرور سريع بالكاميرا', f: () => buildDemoMoulid(), c: ['مصر', 'ليل', 'بهجة'], g: ['#ff9ad0', '#1c1030'] },
+  { e: '⚓', n: 'فجر المرسى', d: 'مراكب الصيادين تبحر مع شروق الشمس', f: () => buildDemoHarbor(), c: ['مصر', 'دراما'], g: ['#2a78a8', '#f0b070'] },
   { e: '⛲', n: 'ميدان المدينة', d: 'نافورة وأتوبيس وصباح جديد', f: () => buildDemoSquare(), c: ['مصر', 'بهجة'], g: ['#7fb8e8', '#9a9488'] },
 ];
 function openGallery() {
