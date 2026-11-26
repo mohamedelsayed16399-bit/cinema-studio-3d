@@ -187,6 +187,44 @@ export function makeCharacter(opts = {}) {
   return g;
 }
 
+export const HATS = [['', 'بدون'], ['grad', '🎓 قبعة تخرج'], ['cap', '🧢 كاب'], ['crown', '👑 تاج'], ['turban', '🧕 عمامة'], ['tophat', '🎩 شابو'], ['shades', '🕶️ نظارة شمس']];
+export function setHat(o, hat) {
+  const head = o.group.userData.parts.head;
+  head.children.filter(c => c.name === 'acc').forEach(c => head.remove(c));
+  if (o.colors) o.colors.hat = hat || '';
+  if (!hat) return;
+  const acc = new THREE.Group(); acc.name = 'acc';
+  const M = (c, r = 0.6) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+  const add = (geo, mat, x, y, z, rx = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.x = rx; m.castShadow = true; acc.add(m); return m; };
+  if (hat === 'grad') {
+    add(new THREE.CylinderGeometry(0.24, 0.27, 0.16, 12), M(0x15151c), 0, 0.3, 0);
+    add(new THREE.BoxGeometry(0.85, 0.05, 0.85), M(0x15151c), 0, 0.4, 0);
+    add(new THREE.SphereGeometry(0.05, 8, 6), M(0xf2c230), 0.38, 0.38, 0.38);
+    add(new THREE.CylinderGeometry(0.015, 0.015, 0.22, 5), M(0xf2c230), 0.38, 0.27, 0.38);
+  } else if (hat === 'cap') {
+    add(new THREE.SphereGeometry(0.38, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), M(0xd02a2a), 0, 0.06, 0);
+    add(new THREE.BoxGeometry(0.46, 0.04, 0.3), M(0xa81e1e), 0, 0.1, 0.4);
+  } else if (hat === 'crown') {
+    add(new THREE.CylinderGeometry(0.3, 0.25, 0.2, 10), M(0xf2c230, 0.3), 0, 0.42, 0);
+    for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2; add(new THREE.ConeGeometry(0.06, 0.18, 5), M(0xf2c230, 0.3), Math.sin(a) * 0.27, 0.6, Math.cos(a) * 0.27); }
+    add(new THREE.SphereGeometry(0.05, 8, 6), M(0xd02a6a, 0.2), 0, 0.46, 0.3);
+  } else if (hat === 'turban') {
+    add(new THREE.TorusGeometry(0.3, 0.13, 8, 16), M(0xf2ead8, 0.9), 0, 0.2, 0, Math.PI / 2);
+    add(new THREE.SphereGeometry(0.33, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), M(0xf2ead8, 0.9), 0, 0.22, 0);
+    add(new THREE.SphereGeometry(0.06, 8, 6), M(0xd02a2a, 0.3), 0, 0.32, 0.36);
+  } else if (hat === 'tophat') {
+    add(new THREE.CylinderGeometry(0.2, 0.22, 0.42, 12), M(0x15151c, 0.4), 0, 0.55, 0);
+    add(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 14), M(0x15151c, 0.4), 0, 0.34, 0);
+    add(new THREE.CylinderGeometry(0.225, 0.225, 0.07, 12), M(0xb02a2a, 0.5), 0, 0.42, 0);
+  } else if (hat === 'shades') {
+    add(new THREE.BoxGeometry(0.2, 0.11, 0.05), M(0x0a0a10, 0.2), -0.12, 0.06, 0.32);
+    add(new THREE.BoxGeometry(0.2, 0.11, 0.05), M(0x0a0a10, 0.2), 0.12, 0.06, 0.32);
+    add(new THREE.BoxGeometry(0.08, 0.025, 0.04), M(0x0a0a10, 0.2), 0, 0.08, 0.32);
+  }
+  acc.traverse(m => { m.userData.objRoot = o.group; });
+  head.add(acc);
+}
+
 // ---------- الديكور ----------
 export const PROP_DEFS = {
   pyramid: { name: 'هرم', make() {
@@ -541,10 +579,11 @@ export function addCharacter(name, opts = {}, x = 0, z = 0) {
   scene.add(group);
   const o = {
     id: genId(), kind: 'char', name: name || ('ممثل ' + nid),
-    colors: { skin: opts.skin ?? 0xe8b88a, shirt: opts.shirt ?? 0x3a6bd6, pants: opts.pants ?? 0x2c2f45, hair: opts.hair ?? 0x2a2018 },
+    colors: { skin: opts.skin ?? 0xe8b88a, shirt: opts.shirt ?? 0x3a6bd6, pants: opts.pants ?? 0x2c2f45, hair: opts.hair ?? 0x2a2018, hat: opts.hat || '' },
     group, track: { keys: [{ t: 0, x, y: 0, z, ry: 0 }], actions: [] }
   };
   S.objects.push(o);
+  if (opts.hat) setHat(o, opts.hat);
   return o;
 }
 export function addProp(type, x = 0, z = 0, scale = 1) {
@@ -1339,6 +1378,8 @@ function renderSceneTab() {
     <div class="row"><label>القميص</label><input type="color" id="nc-shirt" value="#3a6bd6">
     <label>البنطلون</label><input type="color" id="nc-pants" value="#2c2f45">
     <label>البشرة</label><input type="color" id="nc-skin" value="#e8b88a"></div>
+    <div class="row"><label>إكسسوار</label><select id="nc-hat">${HATS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
+    ${sel && sel.kind === 'char' ? `<div class="row"><label>إكسسوار «${esc(sel.name)}»</label><select id="sel-hat">${HATS.map(([v, n]) => `<option value="${v}" ${(sel.colors.hat || '') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>` : ''}
     <div class="row"><label>جاهز</label>
       <button class="chip-btn" data-preset="فلاح|#f2ead8|#f2ead8|#b87850">🧑‍🌾 فلاح</button>
       <button class="chip-btn" data-preset="عريس|#f5f5f5|#1a1c28|#b87850">🤵 عريس</button>
@@ -1398,9 +1439,12 @@ function renderSceneTab() {
       shirt: parseInt(document.getElementById('nc-shirt').value.slice(1), 16),
       pants: parseInt(document.getElementById('nc-pants').value.slice(1), 16),
       skin: parseInt(document.getElementById('nc-skin').value.slice(1), 16),
+      hat: document.getElementById('nc-hat').value,
     }, (Math.random() * 10 - 5), (Math.random() * 10 - 5));
     select(o.id); toast('انضم ممثل جديد 🎭');
   };
+  const selHat = document.getElementById('sel-hat');
+  if (selHat) selHat.onchange = () => { setHat(sel, selHat.value); toast('إكسسوار ' + sel.name + ': ' + selHat.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('crowd-add').onclick = () => {
     const n = addCrowd(8, controls.target.x, controls.target.z);
     toast('انضم جمهور من ' + n + ' أشخاص 👥'); renderPanel(); drawTimeline();
@@ -2755,7 +2799,7 @@ function buildDemoCorniche() {
   const a = addCharacter('أحمد', { shirt: 0x2a7bd6, pants: 0x2c2f45, skin: 0xd9a06a, hair: 0x1a1a1a }, -18, 2);
   const m = addCharacter('منى', { shirt: 0xd64a7a, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x3a1c10 }, -17, 3);
   const k = addCharacter('يوسف', { shirt: 0xf2c230, pants: 0x2c3a6a, skin: 0xd9a06a, hair: 0x1a1a1a }, 4, 4);
-  const v = addCharacter('عم سيد', { shirt: 0xeeeeee, pants: 0x6a5a3a, skin: 0xb8804a, hair: 0x888888 }, 19, 3);
+  const v = addCharacter('عم سيد', { shirt: 0xeeeeee, pants: 0x6a5a3a, skin: 0xb8804a, hair: 0x888888, hat: 'turban' }, 19, 3);
   a.track.actions.push({ type: 'walk', t0: 0.5, t1: 8, fx: -18, fz: 2, tx: -4, tz: 2 });
   a.track.actions.push({ type: 'gesture', name: 'point', time: 8.5, dur: 2.5 });
   a.track.actions.push({ type: 'walk', t0: 11, t1: 17, fx: -4, fz: 2, tx: 10, tz: 3 });
@@ -2871,8 +2915,8 @@ function buildDemoGrad() {
   addProp('column', -10, -10, 1.3); addProp('column', 10, -10, 1.3);
   for (let i = 0; i < 6; i++) addProp('lantern', -15 + i * 6, -12, 0.9);
   addProp('flag', -6, -9, 1.2); addProp('flag', 6, -9, 1.2);
-  const d = addCharacter('الدكتور', { shirt: 0x1a1a2a, pants: 0x1a1a2a, skin: 0xc98f5e, hair: 0x666666 }, -9, -3);
-  const g1 = addCharacter('سلمى', { shirt: 0x7a2ad6, pants: 0x7a2ad6, skin: 0xe8b88a, hair: 0x2a1810 }, 9, -1);
+  const d = addCharacter('الدكتور', { shirt: 0x1a1a2a, pants: 0x1a1a2a, skin: 0xc98f5e, hair: 0x666666, hat: 'tophat' }, -9, -3);
+  const g1 = addCharacter('سلمى', { shirt: 0x7a2ad6, pants: 0x7a2ad6, skin: 0xe8b88a, hair: 0x2a1810, hat: 'grad' }, 9, -1);
   const g2 = addCharacter('كريم', { shirt: 0x1a3a8a, pants: 0x1a3a8a, skin: 0xd9a06a, hair: 0x1a1a1a }, 10, 0.5);
   d.track.actions.push({ type: 'gesture', name: 'wave', time: 1, dur: 2.5 });
   d.track.actions.push({ type: 'walk', t0: 3.5, t1: 7, fx: -9, fz: -3, tx: -3, tz: -3 });
@@ -2933,7 +2977,7 @@ function buildDemoMoulid() {
   const car = S.objects.find(o => o.propType === 'car');
   const a = addCharacter('حسن', { shirt: 0x2a9d5c, pants: 0x2c2f45, skin: 0xd9a06a, hair: 0x1a1a1a }, -8, 1);
   const b = addCharacter('ندى', { shirt: 0xe0558a, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x2a1810 }, 8, 1.5);
-  const c = addCharacter('الحاج رمضان', { shirt: 0xf1ead2, pants: 0x4a4030, skin: 0xb8804a, hair: 0x999999 }, 0, -3);
+  const c = addCharacter('الحاج رمضان', { shirt: 0xf1ead2, pants: 0x4a4030, skin: 0xb8804a, hair: 0x999999, hat: 'turban' }, 0, -3);
   tk.track.actions.push({ type: 'walk', t0: 2, t1: 9, fx: -32, fz: 3, tx: 32, tz: 3 });
   car.track.actions.push({ type: 'walk', t0: 11, t1: 17, fx: 34, fz: 5, tx: -34, tz: 5 });
   a.track.actions.push({ type: 'gesture', name: 'wave', time: 1, dur: 2.5 });
@@ -2988,7 +3032,7 @@ function buildDemoSquare() {
   const car = S.objects.find(o => o.propType === 'car');
   const a = addCharacter('سارة', { shirt: 0xd6502a, pants: 0x2c2f45, skin: 0xe8b88a, hair: 0x2a1810 }, -9, 0.5);
   const b = addCharacter('مازن', { shirt: 0x2a7bd6, pants: 0x3a3550, skin: 0xd9a06a, hair: 0x1a1a1a }, 4, 3);
-  const c = addCharacter('بائع الكشك', { shirt: 0x3a9a5a, pants: 0x4a4030, skin: 0xb8804a, hair: 0x333333 }, 16, -5.5);
+  const c = addCharacter('بائع الكشك', { shirt: 0x3a9a5a, pants: 0x4a4030, skin: 0xb8804a, hair: 0x333333, hat: 'cap' }, 16, -5.5);
   bus.track.actions.push({ type: 'walk', t0: 1, t1: 8, fx: -40, fz: 14, tx: 40, tz: 14 });
   car.track.actions.push({ type: 'walk', t0: 9, t1: 15, fx: 40, fz: 11, tx: -40, tz: 11 });
   a.track.actions.push({ type: 'walk', t0: 1, t1: 8, fx: -9, fz: 0.5, tx: 4, tz: 5 });
@@ -3081,7 +3125,7 @@ function buildDemoSouk() {
   addProp('tuktuk', 34, 2, 1);
   const tk = S.objects.find(o => o.propType === 'tuktuk');
   tk.track.actions.push({ type: 'walk', t0: 10, t1: 17, fx: 34, fz: 2, tx: -34, tz: 2 });
-  const a = addCharacter('أبو خالد', { shirt: 0x3a8a4a, pants: 0x4a4030, skin: 0xb8804a, hair: 0x333333 }, -14, 1);
+  const a = addCharacter('أبو خالد', { shirt: 0x3a8a4a, pants: 0x4a4030, skin: 0xb8804a, hair: 0x333333, hat: 'cap' }, -14, 1);
   const b = addCharacter('هدى', { shirt: 0xd64a8a, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x2a1810 }, 0, 3);
   const c = addCharacter('زبون', { shirt: 0x2a7bd6, pants: 0x2c2f45, skin: 0xd9a06a, hair: 0x1a1a1a }, 12, 2);
   a.track.actions.push({ type: 'gesture', name: 'wave', time: 1.5, dur: 3 });
@@ -3125,7 +3169,7 @@ function buildDemoCamp() {
   addProp('palm', -20, -10, 1.3); addProp('palm', 22, -8, 1.2); addProp('rock', 6, 10, 1.5); addProp('rock', -8, 12, 1.2);
   const a = addCharacter('سالم', { shirt: 0x8a5a2a, pants: 0x4a4030, skin: 0xb8804a, hair: 0x222222 }, -4, 3);
   const b = addCharacter('ليلى', { shirt: 0x2a7bd6, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x2a1810 }, 4, 3);
-  const c = addCharacter('الجد', { shirt: 0xeeeeee, pants: 0x6a5a3a, skin: 0xb8804a, hair: 0xaaaaaa }, 0, 5);
+  const c = addCharacter('الجد', { shirt: 0xeeeeee, pants: 0x6a5a3a, skin: 0xb8804a, hair: 0xaaaaaa, hat: 'turban' }, 0, 5);
   a.track.actions.push({ type: 'gesture', name: 'wave', time: 1, dur: 2.5 });
   a.track.actions.push({ type: 'gesture', name: 'point', time: 12, dur: 3 });
   b.track.actions.push({ type: 'gesture', name: 'point', time: 6, dur: 3 });
@@ -3209,7 +3253,7 @@ function buildDemoRunway() {
   addProp('column', -16, -14, 1.4); addProp('column', 16, -14, 1.4);
   for (let i = 0; i < 5; i++) addProp('lantern', -12 + i * 6, -16, 1);
   addProp('flag', -8, -15, 1.2); addProp('flag', 8, -15, 1.2);
-  const m1 = addCharacter('ياسمين', { shirt: 0xd02a6a, pants: 0x2a1a3a, skin: 0xe8b88a, hair: 0x1a1008 }, -4, -9);
+  const m1 = addCharacter('ياسمين', { shirt: 0xd02a6a, pants: 0x2a1a3a, skin: 0xe8b88a, hair: 0x1a1008, hat: 'crown' }, -4, -9);
   const m2 = addCharacter('كريم', { shirt: 0x1a8ad0, pants: 0x1a1a2a, skin: 0xd9a06a, hair: 0x1a1a1a }, 4, -9);
   const m3 = addCharacter('نور', { shirt: 0xf2c230, pants: 0x3a1a2a, skin: 0xe8b88a, hair: 0x4a2a10 }, 0, -9);
   m1.track.actions.push({ type: 'walk', t0: 1, t1: 7, fx: -4, fz: -9, tx: -2, tz: 8 });
