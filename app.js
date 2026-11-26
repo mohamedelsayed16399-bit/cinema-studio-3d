@@ -324,6 +324,24 @@ export const PROP_DEFS = {
     g.add(mesh(new THREE.SphereGeometry(0.32, 12, 10), MAT(0xf2ead8), 0, 0.32, 0));
     return g;
   }},
+  pedestal: { name: 'قاعدة عرض', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(1.1, 1.2, 1.1), MAT(0xd8d4cc, 0.4), 0, 0.6, 0));
+    const art = mesh(new THREE.ConeGeometry(0.32, 0.7, 6), MAT(0xd4af37, 0.25), 0, 1.6, 0);
+    art.name = 'artifact'; g.add(art);
+    return g;
+  }},
+  laser: { name: 'ليزر أمان', make() {
+    const g = new THREE.Group();
+    const lm = new THREE.MeshBasicMaterial({ color: 0xff2a3a });
+    for (let i = 0; i < 3; i++) {
+      const b = mesh(new THREE.BoxGeometry(0.06, 0.06, 3.2), lm, 0, 0.6 + i * 0.55, 0, false);
+      b.name = 'laserbeam'; g.add(b);
+    }
+    g.add(mesh(new THREE.CylinderGeometry(0.09, 0.12, 2.2, 8), MAT(0x2a2e3a), 0, 1.1, -1.6));
+    g.add(mesh(new THREE.CylinderGeometry(0.09, 0.12, 2.2, 8), MAT(0x2a2e3a), 0, 1.1, 1.6));
+    return g;
+  }},
   bike: { name: 'موتوسيكل', make() {
     const g = new THREE.Group();
     const w1 = mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 16), MAT(0x1a1c22), 0, 0.55, -0.9);
@@ -784,7 +802,7 @@ export function addSpot(cfg = {}) {
   l.target.position.set(...target);
   l.castShadow = true;
   scene.add(l); scene.add(l.target);
-  const sp = { id: cfg.id || genId(), color: l.color.getHex(), intensity: l.intensity, pos, target, light: l };
+  const sp = { id: cfg.id || genId(), color: l.color.getHex(), intensity: l.intensity, pos, target, light: l, sweep: cfg.sweep || null, pulse: cfg.pulse || null };
   S.spots.push(sp);
   return sp;
 }
@@ -820,7 +838,13 @@ function applyTime(t) {
   scene.traverse(m => {
     if (m.name === 'flame') m.scale.setScalar(1 + Math.sin(t * 12 + m.id) * 0.15);
     if (m.name === 'firelight') m.intensity = 2 + Math.sin(t * 10) * 0.5;
+    if (m.name === 'laserbeam') m.visible = Math.sin(t * 2.4 + m.id) > -0.75;
   });
+  // كشافات تكنس المكان أو تنبض كإنذار
+  for (const sp of S.spots) {
+    if (sp.sweep) sp.light.target.position.x = sp.sweep.base + Math.sin(t * sp.sweep.speed) * sp.sweep.range;
+    if (sp.pulse) sp.light.intensity = sp.pulse.base + Math.max(0, Math.sin(t * 6)) * sp.pulse.amp;
+  }
 }
 
 function animate(now) {
@@ -2043,6 +2067,61 @@ function buildDemoMoto() {
   addSpot({ pos: [6, 6, 10], color: 0xffc890, intensity: 70, target: [4, 1, 0] });
   seek(0); applySun();
 }
+function buildDemoHeist() {
+  clearAll();
+  S.filmDur = 26; S.title = 'سرقة المتحف';
+  addProp('pedestal', -6, -6); addProp('pedestal', 0, -8); addProp('pedestal', 6, -6);
+  addProp('sphinx', -12, -14, 1.4); addProp('column', -8, -16); addProp('column', 8, -16);
+  addProp('obelisk', 12, -14); addProp('arch', 0, -20); addProp('arch', -18, 0);
+  addProp('laser', -3, 2); addProp('laser', 3, 2);
+  const thief = addCharacter('سارق', { shirt: 0x14161c, pants: 0x14161c, skin: 0xc98f5e }, -16, 16);
+  const guard1 = addCharacter('حارس', { shirt: 0x8a2020, pants: 0x2a2a2a }, 16, 20);
+  const guard2 = addCharacter('مشرف', { shirt: 0x8a2020, pants: 0x2a2a2a, skin: 0xd9a06a }, 20, 16);
+  thief.track.actions.push({ type: 'walk', t0: 0.5, t1: 5, fx: -16, fz: 16, tx: -6, tz: 7 });
+  thief.track.actions.push({ type: 'gesture', name: 'think', time: 5.2, dur: 2 });
+  thief.track.actions.push({ type: 'walk', t0: 7.5, t1: 10.5, fx: -6, fz: 7, tx: 0, tz: -6 });
+  thief.track.actions.push({ type: 'gesture', name: 'bow', time: 10.8, dur: 1.6 });
+  thief.track.actions.push({ type: 'walk', t0: 12.5, t1: 17.5, fx: 0, fz: -6, tx: -14, tz: 12 });
+  thief.track.actions.push({ type: 'walk', t0: 17.5, t1: 21, fx: -14, fz: 12, tx: -24, tz: 20 });
+  guard1.track.actions.push({ type: 'walk', t0: 13, t1: 18, fx: 16, fz: 20, tx: 0, tz: 6 });
+  guard1.track.actions.push({ type: 'gesture', name: 'point', time: 18.4, dur: 2 });
+  guard1.track.actions.push({ type: 'walk', t0: 19, t1: 24, fx: 0, fz: 6, tx: -16, tz: 14 });
+  guard2.track.actions.push({ type: 'walk', t0: 14, t1: 19, fx: 20, fz: 16, tx: 4, tz: 2 });
+  guard2.track.actions.push({ type: 'walk', t0: 19.5, t1: 24.5, fx: 4, fz: 2, tx: -12, tz: 10 });
+  const sh1 = addShot('التسلل', 0, 9); sh1.transition = 'fade';
+  shotKey(sh1, 0, [-20, 4, 24], [-14, 1.5, 14], 46, thief.id);
+  shotKey(sh1, 9, [-10, 2.2, 12], [-4, 1.2, 5], 40, thief.id);
+  const sh2 = addShot('السرقة', 9, 14); sh2.transition = 'fade';
+  shotKey(sh2, 9, [4, 2, 2], [0, 1.2, -6], 38, thief.id);
+  shotKey(sh2, 14, [-4, 3, -1], [0, 1.4, -7], 42, thief.id);
+  const sh3 = addShot('الهروب', 14, 26); sh3.transition = 'fade'; sh3.shake = 0.5;
+  shotKey(sh3, 14, [-2, 2.4, 2], [-6, 1.2, 4], 40, thief.id);
+  shotKey(sh3, 26, [-6, 10, 26], [-14, 2, 10], 54, null);
+  S.music.mood = 'tension';
+  S.sfx = [
+    { id: genId(), time: 1, type: 'steps' }, { id: genId(), time: 4.5, type: 'steps' },
+    { id: genId(), time: 10.9, type: 'magic' }, { id: genId(), time: 11.6, type: 'bell' },
+    { id: genId(), time: 12.3, type: 'bell' }, { id: genId(), time: 13, type: 'whoosh' },
+    { id: genId(), time: 15, type: 'steps' }, { id: genId(), time: 20, type: 'wind' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.3, dur: 2.6, text: 'سرقة المتحف', style: 'card', color: '#e74c3c' },
+    { id: genId(), time: 22.5, dur: 2.8, text: 'يتبع…', style: 'title', color: '#e74c3c' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: thief.id, time: 5.4, dur: 2.4, text: 'بهدوء… خطوة خطوة' },
+    { id: genId(), objId: guard1.id, time: 18.6, dur: 2.6, text: 'اللص! أمسكوه!' },
+  ];
+  S.weather = 'none';
+  S.sun.tod = 0.92; S.sun.intensity = 0.7; S.ambient = 0.32;
+  const s1 = addSpot({ pos: [-10, 9, 0], color: 0xcfe0ff, intensity: 80, target: [-4, 0, -4] });
+  s1.sweep = { base: -4, range: 8, speed: 0.7 };
+  const s2 = addSpot({ pos: [10, 9, 0], color: 0xcfe0ff, intensity: 80, target: [4, 0, -4] });
+  s2.sweep = { base: 4, range: 8, speed: 0.9 };
+  const s3 = addSpot({ pos: [0, 10, -10], color: 0xff3040, intensity: 30, target: [0, 0, -6] });
+  s3.pulse = { base: 12, amp: 60 };
+  seek(0); applySun();
+}
 function buildDemoNile() {
   clearAll();
   S.filmDur = 25; S.title = 'ليلة على النيل';
@@ -2205,6 +2284,7 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '💃 فرح في الحارة', fn: () => { buildDemoWedding(); refreshAfterLoad(); overlay(false); toast('مشهد: فرح في الحارة ▶'); } },
     { t: '⚽ ماتش في الحارة', fn: () => { buildDemoFootball(); refreshAfterLoad(); overlay(false); toast('مشهد: ماتش في الحارة ▶'); } },
     { t: '🏍️ مطاردة الموتوسيكل', fn: () => { buildDemoMoto(); refreshAfterLoad(); overlay(false); toast('مشهد: مطاردة الموتوسيكل ▶'); } },
+    { t: '🚨 سرقة المتحف', fn: () => { buildDemoHeist(); refreshAfterLoad(); overlay(false); toast('مشهد: سرقة المتحف ▶'); } },
     { t: 'إلغاء', fn: () => overlay(false) },
   ]);
 };
@@ -2393,4 +2473,5 @@ function checkShotMood() {
     }
   }
 }
+
 
