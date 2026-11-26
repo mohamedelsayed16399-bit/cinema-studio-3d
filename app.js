@@ -1389,7 +1389,7 @@ function updateFade(t) {
 }
 
 // ---------- الطقس ----------
-let weatherPts = null, weatherVel = null;
+var weatherPts = null, weatherVel = null;
 export function setWeather(type) {
   S.weather = type;
   if (weatherPts) { scene.remove(weatherPts); weatherPts.geometry.dispose(); weatherPts = null; }
