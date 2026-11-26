@@ -3052,6 +3052,51 @@ function buildDemoHarbor() {
   seek(0); applySun();
 }
 
+function buildDemoSouk() {
+  clearAll();
+  S.filmDur = 26; S.title = 'سوق الجمعة';
+  S.groundColor = 0xb89a68; S.skyColor = 0x8ec8f0; S.fogFar = 150; S.grade = 3; S.vig = 0.3; S.grain = 0.1; applyGround();
+  for (let i = 0; i < 5; i++) { addProp('stall', -16 + i * 8, -4, 1.2); }
+  for (let i = 0; i < 4; i++) { addProp('stall', -12 + i * 8, 8, 1.2); }
+  addProp('kiosk', 26, -2, 1.1); addProp('palm', -24, -10, 1.2); addProp('palm', 24, 12, 1.3);
+  addProp('house', -20, -22, 1.8); addProp('house', 4, -24, 1.9); addProp('house', 26, -20, 1.6);
+  addProp('tuktuk', 34, 2, 1);
+  const tk = S.objects.find(o => o.propType === 'tuktuk');
+  tk.track.actions.push({ type: 'walk', t0: 10, t1: 17, fx: 34, fz: 2, tx: -34, tz: 2 });
+  const a = addCharacter('أبو خالد', { shirt: 0x3a8a4a, pants: 0x4a4030, skin: 0xb8804a, hair: 0x333333 }, -14, 1);
+  const b = addCharacter('هدى', { shirt: 0xd64a8a, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x2a1810 }, 0, 3);
+  const c = addCharacter('زبون', { shirt: 0x2a7bd6, pants: 0x2c2f45, skin: 0xd9a06a, hair: 0x1a1a1a }, 12, 2);
+  a.track.actions.push({ type: 'gesture', name: 'wave', time: 1.5, dur: 3 });
+  a.track.actions.push({ type: 'gesture', name: 'cheer', time: 15, dur: 3 });
+  b.track.actions.push({ type: 'walk', t0: 2, t1: 10, fx: 0, fz: 3, tx: -12, tz: 3 });
+  b.track.actions.push({ type: 'gesture', name: 'point', time: 10.5, dur: 2.5 });
+  c.track.actions.push({ type: 'walk', t0: 3, t1: 9, fx: 12, fz: 2, tx: -8, tz: 2.5 });
+  c.track.actions.push({ type: 'gesture', name: 'clap', time: 17, dur: 3 });
+  c.track.actions.push({ type: 'gesture', name: 'dance', time: 20, dur: 5 });
+  [tk, a, b, c].forEach(pinWalks);
+  addCrowd(10, 0, 3);
+  const sh1 = addShot('الزحمة', 0, 9); sh1.transition = 'fade';
+  applyCamPreset(sh1, 'dollyin', [-4, 0, 3], null);
+  const sh2 = addShot('التوك توك', 9, 17); sh2.transition = 'cut';
+  applyCamPreset(sh2, 'driveby', [0, 0, 2], tk.id);
+  const sh3 = addShot('الفرحة', 17, 26); sh3.transition = 'fade';
+  applyCamPreset(sh3, 'orbit', [-2, 0, 2], null);
+  S.music.mood = 'oriental';
+  S.sfx = [ { id: genId(), time: 1.5, type: 'bell' }, { id: genId(), time: 10, type: 'whoosh' }, { id: genId(), time: 15, type: 'magic' } ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'سوق الجمعة', style: 'card', color: '#fff0b0' },
+    { id: genId(), time: 20, dur: 4, text: 'الرزق على الله ☀️', style: 'title', color: '#ffffff' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: a.id, time: 1.6, dur: 2.6, text: 'طماطم بخمسة جنيه!' },
+    { id: genId(), objId: b.id, time: 10.6, dur: 2.4, text: 'بكام الكيلو ده؟' },
+    { id: genId(), objId: a.id, time: 15.2, dur: 2.2, text: 'تعالى يا باشا!' },
+  ];
+  S.trails = 'dust'; S.weather = 'dust'; setWeather('dust');
+  S.sun.tod = 0.35; S.sun.intensity = 1.9; S.ambient = 1.6;
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -3134,6 +3179,7 @@ const GALLERY = [
   { e: '🌙', n: 'ليلة رمضان في الحارة', d: 'فوانيس ومسحراتي وتوك توك', f: () => buildDemoRamadan(), c: ['مصر', 'ليل', 'بهجة'], g: ['#c98a2a', '#1a1030'] },
   { e: '🎓', n: 'حفل التخرج', d: 'تكريم واحتفال وقبعات', f: () => buildDemoGrad(), c: ['بهجة', 'ليل'], g: ['#7a2ad6', '#1a1a2a'] },
   { e: '🕌', n: 'مولد الحي', d: 'أنوار وزحمة ومرور سريع بالكاميرا', f: () => buildDemoMoulid(), c: ['مصر', 'ليل', 'بهجة'], g: ['#ff9ad0', '#1c1030'] },
+  { e: '🧺', n: 'سوق الجمعة', d: 'زحمة وبياعين وتوك توك بيعدي جنبك', f: () => buildDemoSouk(), c: ['مصر', 'بهجة'], g: ['#e0a040', '#6a4a2a'] },
   { e: '⚓', n: 'فجر المرسى', d: 'مراكب الصيادين تبحر مع شروق الشمس', f: () => buildDemoHarbor(), c: ['مصر', 'دراما'], g: ['#2a78a8', '#f0b070'] },
   { e: '⛲', n: 'ميدان المدينة', d: 'نافورة وأتوبيس وصباح جديد', f: () => buildDemoSquare(), c: ['مصر', 'بهجة'], g: ['#7fb8e8', '#9a9488'] },
 ];
