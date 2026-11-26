@@ -2187,11 +2187,19 @@ function makeNameTexture(name) {
   c.width = 512; c.height = 128;
   const g = c.getContext('2d');
   g.direction = 'rtl'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = '900 64px Cairo, sans-serif';
-  g.lineWidth = 10; g.strokeStyle = '#000a'; g.lineJoin = 'round';
-  g.strokeText(name, 256, 64, 470);
+  g.font = '900 72px Cairo, sans-serif';
+  const w = Math.min(480, Math.max(150, g.measureText(name).width + 90));
+  const x = (512 - w) / 2;
+  // حبة داكنة خلف الاسم لتبقى مقروءة على أي خلفية
+  g.fillStyle = 'rgba(10,12,24,0.82)';
+  g.strokeStyle = '#ffd75e'; g.lineWidth = 5;
+  g.beginPath();
+  if (g.roundRect) g.roundRect(x, 18, w, 92, 46); else g.rect(x, 18, w, 92);
+  g.fill(); g.stroke();
+  g.lineWidth = 9; g.strokeStyle = '#000'; g.lineJoin = 'round';
+  g.strokeText(name, 256, 66, w - 36);
   g.fillStyle = '#ffd75e';
-  g.fillText(name, 256, 64, 470);
+  g.fillText(name, 256, 66, w - 36);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -2202,10 +2210,10 @@ function updateNameTags() {
     if (S.nameTags && o.kind === 'char') {
       if (!sp || sp.userData.nm !== o.name) {
         if (sp) { sp.parent?.remove(sp); sp.material.map.dispose(); sp.material.dispose(); }
-        sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameTexture(o.name), transparent: true, depthTest: false }));
+        sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameTexture(o.name), transparent: true, depthTest: false, fog: false }));
         sp.renderOrder = 2;
-        sp.scale.set(2.6, 0.65, 1);
-        sp.position.set(0, 3.15, 0);
+        sp.scale.set(3.4, 0.85, 1);
+        sp.position.set(0, 3.3, 0);
         sp.userData.nm = o.name;
         nameTagSprites.set(o.id, sp);
         o.group.add(sp);
@@ -2304,4 +2312,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-    }
+}
