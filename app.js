@@ -2778,6 +2778,60 @@ function buildDemoRamadan() {
   seek(0); applySun();
 }
 
+function buildDemoGrad() {
+  clearAll();
+  S.filmDur = 24; S.title = 'حفل التخرج';
+  S.groundColor = 0x3a2f4a; S.skyColor = 0x1a1a24; S.fogFar = 90; S.grade = 3; applyGround();
+  for (let i = 0; i < 3; i++) addProp('pedestal', -3 + i * 3, -6, 2.2);
+  addProp('column', -10, -10, 1.3); addProp('column', 10, -10, 1.3);
+  for (let i = 0; i < 6; i++) addProp('lantern', -15 + i * 6, -12, 0.9);
+  addProp('flag', -6, -9, 1.2); addProp('flag', 6, -9, 1.2);
+  const d = addCharacter('الدكتور', { shirt: 0x1a1a2a, pants: 0x1a1a2a, skin: 0xc98f5e, hair: 0x666666 }, -9, -3);
+  const g1 = addCharacter('سلمى', { shirt: 0x7a2ad6, pants: 0x7a2ad6, skin: 0xe8b88a, hair: 0x2a1810 }, 9, -1);
+  const g2 = addCharacter('كريم', { shirt: 0x1a3a8a, pants: 0x1a3a8a, skin: 0xd9a06a, hair: 0x1a1a1a }, 10, 0.5);
+  d.track.actions.push({ type: 'gesture', name: 'wave', time: 1, dur: 2.5 });
+  d.track.actions.push({ type: 'walk', t0: 3.5, t1: 7, fx: -9, fz: -3, tx: -3, tz: -3 });
+  d.track.actions.push({ type: 'gesture', name: 'point', time: 7.5, dur: 2.5 });
+  d.track.actions.push({ type: 'gesture', name: 'clap', time: 14, dur: 3 });
+  g1.track.actions.push({ type: 'walk', t0: 3, t1: 10, fx: 9, fz: -1, tx: 0, tz: -3 });
+  g1.track.actions.push({ type: 'gesture', name: 'bow', time: 10.5, dur: 2.2 });
+  g1.track.actions.push({ type: 'gesture', name: 'jump', time: 15, dur: 2 });
+  g1.track.actions.push({ type: 'gesture', name: 'dance', time: 18, dur: 5 });
+  g2.track.actions.push({ type: 'walk', t0: 4, t1: 11, fx: 10, fz: 0.5, tx: 1.5, tz: -2.5 });
+  g2.track.actions.push({ type: 'gesture', name: 'cheer', time: 12, dur: 3 });
+  g2.track.actions.push({ type: 'gesture', name: 'dance', time: 18, dur: 5 });
+  [d, g1, g2].forEach(pinWalks);
+  addCrowd(8, 0, 8);
+  const sh1 = addShot('الافتتاح', 0, 8); sh1.transition = 'fade';
+  shotKey(sh1, 0, [0, 3, 22], [0, 2.5, -6], 55, null);
+  shotKey(sh1, 8, [-8, 2.4, 10], [-4, 1.8, -3], 44, d.id);
+  const sh2 = addShot('التكريم', 8, 16); sh2.transition = 'fade';
+  applyCamPreset(sh2, 'orbit', [0, 0, -3], null);
+  const sh3 = addShot('الاحتفال', 16, 24); sh3.transition = 'fade'; sh3.shake = 0.4;
+  shotKey(sh3, 16, [0, 1.6, 8], [1, 2.2, -3], 48, null);
+  shotKey(sh3, 24, [0, 9, 18], [0, 3, -3], 56, null);
+  S.music.mood = 'epic';
+  S.sfx = [
+    { id: genId(), time: 0.5, type: 'bell' }, { id: genId(), time: 10.7, type: 'magic' },
+    { id: genId(), time: 15.2, type: 'boom' }, { id: genId(), time: 18, type: 'whoosh' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'حفل التخرج', style: 'card', color: '#c9a0ff' },
+    { id: genId(), time: 20, dur: 3.5, text: 'مبروك يا دفعة 2026 🎓', style: 'title', color: '#ffe4a8' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: d.id, time: 7.6, dur: 2.4, text: 'اتفضلي استلمي شهادتك' },
+    { id: genId(), objId: g1.id, time: 10.6, dur: 2.2, text: 'شكرًا يا دكتور!' },
+    { id: genId(), objId: g2.id, time: 12.2, dur: 2.2, text: 'ألف مبروك يا سلمى!' },
+  ];
+  S.trails = 'spark';
+  S.weather = 'firefly'; setWeather('firefly');
+  S.sun.tod = 0.75; S.sun.intensity = 0.5; S.ambient = 1.1;
+  addSpot({ pos: [-6, 12, 4], color: 0xc9a0ff, intensity: 60, target: [-3, 0, -3], sweep: { base: -3, speed: 0.8, range: 6 } });
+  addSpot({ pos: [6, 12, 4], color: 0xffd9a0, intensity: 60, target: [3, 0, -3], pulse: { base: 40, amp: 30 } });
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -2856,6 +2910,7 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '🚨 سرقة المتحف', fn: () => { buildDemoHeist(); refreshAfterLoad(); overlay(false); toast('مشهد: سرقة المتحف ▶'); } },
     { t: '🌊 أعماق البحر', fn: () => { buildDemoUnder(); refreshAfterLoad(); overlay(false); toast('مشهد: أعماق البحر ▶'); } },
     { t: '🚀 رحلة إلى القمر', fn: () => { buildDemoSpace(); refreshAfterLoad(); overlay(false); toast('مشهد: رحلة إلى القمر ▶'); } },
+    { t: '🎓 حفل التخرج', fn: () => { buildDemoGrad(); refreshAfterLoad(); overlay(false); toast('مشهد: حفل التخرج ▶'); } },
     { t: '🌙 ليلة رمضان في الحارة', fn: () => { buildDemoRamadan(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة رمضان ▶'); } },
     { t: '🌇 غروب الكورنيش', fn: () => { buildDemoCorniche(); refreshAfterLoad(); overlay(false); toast('مشهد: غروب الكورنيش ▶'); } },
     { t: 'إلغاء', fn: () => overlay(false) },
