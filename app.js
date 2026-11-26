@@ -2027,7 +2027,7 @@ export function setWeather(type) {
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const mat = new THREE.PointsMaterial({
     color: type === 'rain' ? 0x9db8d9 : type === 'snow' ? 0xffffff : type === 'bubble' ? 0xcdf2ff : type === 'firefly' ? 0xfff08a : 0xd8c090,
-    size: type === 'rain' ? 0.12 : type === 'snow' ? 0.25 : type === 'bubble' ? 0.38 : type === 'firefly' ? 0.45 : 0.3,
+    size: type === 'rain' ? 0.12 : type === 'snow' ? 0.25 : type === 'bubble' ? 0.38 : type === 'firefly' ? 0.22 : 0.3,
     transparent: true, opacity: type === 'dust' ? 0.35 : type === 'bubble' ? 0.6 : 0.75,
   });
   weatherPts = new THREE.Points(geo, mat);
@@ -2910,6 +2910,14 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '🚨 سرقة المتحف', fn: () => { buildDemoHeist(); refreshAfterLoad(); overlay(false); toast('مشهد: سرقة المتحف ▶'); } },
     { t: '🌊 أعماق البحر', fn: () => { buildDemoUnder(); refreshAfterLoad(); overlay(false); toast('مشهد: أعماق البحر ▶'); } },
     { t: '🚀 رحلة إلى القمر', fn: () => { buildDemoSpace(); refreshAfterLoad(); overlay(false); toast('مشهد: رحلة إلى القمر ▶'); } },
+    { t: '🎲 مفاجأة! مشهد عشوائي', cls: 'primary', fn: () => {
+      const fns = [buildDemo, buildDemoChase, buildDemoNile, buildDemoWedding, buildDemoFootball, buildDemoMoto, buildDemoHeist, buildDemoUnder, buildDemoSpace, buildDemoCorniche, buildDemoRamadan, buildDemoGrad];
+      const f = fns[Math.floor(Math.random() * fns.length)];
+      f();
+      if (Math.random() < 0.5) { const k = ATMOS[Math.floor(Math.random() * ATMOS.length)]; applyAtmos(k[0]); }
+      const tr = ['dust', 'smoke', 'spark', 'none'][Math.floor(Math.random() * 4)]; S.trails = tr;
+      refreshAfterLoad(); overlay(false); toast('🎲 مفاجأة: ' + S.title + ' ▶');
+    } },
     { t: '🎓 حفل التخرج', fn: () => { buildDemoGrad(); refreshAfterLoad(); overlay(false); toast('مشهد: حفل التخرج ▶'); } },
     { t: '🌙 ليلة رمضان في الحارة', fn: () => { buildDemoRamadan(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة رمضان ▶'); } },
     { t: '🌇 غروب الكورنيش', fn: () => { buildDemoCorniche(); refreshAfterLoad(); overlay(false); toast('مشهد: غروب الكورنيش ▶'); } },
@@ -2995,7 +3003,7 @@ function makeNameTexture(name) {
 function updateNameTags() {
   for (const o of S.objects) {
     let sp = nameTagSprites.get(o.id);
-    if (S.nameTags && o.kind === 'char') {
+    if (S.nameTags && o.kind === 'char' && !String(o.name).startsWith('جمهور')) {
       if (!sp || sp.userData.nm !== o.name) {
         if (sp) { sp.parent?.remove(sp); sp.material.map.dispose(); sp.material.dispose(); }
         sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeNameTexture(o.name), transparent: true, depthTest: false, fog: false }));
