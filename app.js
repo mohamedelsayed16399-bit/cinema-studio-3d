@@ -908,7 +908,7 @@ export function clearAll() {
   setWeather('none');
   for (const sp of [...S.spots]) removeSpot(sp.id);
   S.selected = null; S.time = 0;
-  S.groundColor = 0xd9c391; S.skyColor = 0; S.fogFar = 220; applyGround();
+  S.grade = 0; S.groundColor = 0xd9c391; S.skyColor = 0; S.fogFar = 220; applyGround();
 }
 
 // ---------- كشافات ----------
