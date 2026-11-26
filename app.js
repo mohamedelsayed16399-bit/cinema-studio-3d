@@ -1766,8 +1766,12 @@ function exportFilm() {
     { t: 'إلغاء', fn: () => overlay(false) },
   ]);
 }
-function doExport(exW, exH) {
-  ensureAudio(); audio.ctx.resume();
+async function doExport(exW, exH) {
+  ensureAudio();
+  try { await Promise.race([audio.ctx.resume(), new Promise(r => setTimeout(r, 600))]); } catch (e) {}
+  doExportStart(exW, exH, audio.ctx.state === 'running');
+}
+function doExportStart(exW, exH, withAudio) {
   // دقة التصدير
   renderer.setPixelRatio(1);
   renderer.setSize(exW, exH, false);
@@ -1781,8 +1785,9 @@ function doExport(exW, exH) {
   const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus'
     : MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '';
   const stream = canvas.captureStream(30);
-  const atrack = audio.dest.stream.getAudioTracks()[0];
+  const atrack = withAudio ? audio.dest.stream.getAudioTracks()[0] : null;
   if (atrack) stream.addTrack(atrack);
+  if (!withAudio) toast('تنبيه: الصوت متوقف في المتصفح، التصدير هيكون بدون صوت');
   try { recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: exW > 1300 ? 14_000_000 : 8_000_000 } : undefined); }
   catch (e) { recorder = new MediaRecorder(stream); }
   recChunks = [];
