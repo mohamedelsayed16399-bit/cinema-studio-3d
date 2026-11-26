@@ -2327,6 +2327,10 @@ function renderTextsTab() {
     <label>المدة</label><input type="number" id="tx-dur" value="3" min="0.5" max="20" step="0.5" style="width:64px;flex:none"></div>
     <button class="chip-btn sel" id="tx-add" style="width:100%">＋ أضف عند ${S.time.toFixed(1)} ث</button>
   </div>
+  <div class="sec"><h4>🎞️ تترات النهاية</h4>
+    <p style="font-size:11.5px;color:var(--muted);margin:0 0 8px">تضيف تلقائيًا بعد آخر لقطة: بطاقة بالعنوان، بطولة (أسماء الممثلين)، وبطاقة ختام. تتصدّر مع الفيلم.</p>
+    <button class="chip-btn sel" id="tx-credits" style="width:100%">🎬 أضف تترات النهاية تلقائيًا</button>
+  </div>
   <div class="sec"><h4>📋 النصوص المضافة</h4><div class="obj-list">`;
   S.texts.forEach((t, i) => {
     const styleName = t.style === 'title' ? 'عنوان' : t.style === 'card' ? 'بطاقة' : t.style === 'outline' ? 'محدد' : 'ترجمة';
@@ -2344,6 +2348,20 @@ function renderTextsTab() {
       dur: Math.max(0.5, parseFloat(document.getElementById('tx-dur').value) || 3),
     });
     toast('نص مضاف @ ' + S.time.toFixed(1) + ' ث 📝');
+    renderPanel(); drawTimeline(); saveLocal();
+  };
+  document.getElementById('tx-credits').onclick = () => {
+    const names = S.objects.filter(o => o.kind === 'char').map(o => o.name).filter(n => n && !String(n).startsWith('جمهور'));
+    if (!names.length) return toast('ضيف ممثلين الأول عشان تتكتب البطولة');
+    const t0 = S.filmDur;
+    S.texts = S.texts.filter(t => !t.credits);
+    const add = (dt, dur, text, color) => S.texts.push({ id: genId(), time: t0 + dt, dur, text, style: 'card', color, credits: true });
+    add(0.2, 2.2, S.title || 'فيلمي القصير', '#f5b942');
+    add(2.6, 3.2, 'بطولة: ' + names.slice(0, 5).join(' • '), '#ffffff');
+    add(6.0, 2.2, 'تمّ بحمد الله 🎬', '#f5b942');
+    S.filmDur = Math.round((t0 + 8.3) * 10) / 10;
+    seek(Math.max(0, t0 - 0.1));
+    toast('تترات النهاية اتضافت 🎞️ (' + names.length + ' ممثل)');
     renderPanel(); drawTimeline(); saveLocal();
   };
   panelBody.querySelectorAll('[data-del-tx]').forEach(el => el.onclick = () => {
