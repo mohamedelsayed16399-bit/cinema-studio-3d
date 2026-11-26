@@ -72,7 +72,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 #tl-head{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap;}
 #tl-head .time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:86px;text-align:center;}
 #tl-play{width:40px;height:32px;border-radius:9px;border:none;background:linear-gradient(135deg,#4ecdc4,#2ea89f);color:#04211f;font-size:15px;cursor:pointer;font-weight:900;}
-#tl-stop{width:36px;height:32px;border-radius:9px;border:1px solid #2c3360;background:var(--panel2);color:var(--text);cursor:pointer;font-size:13px;}
+#tl-stop,#tl-slow{width:36px;height:32px;border-radius:9px;border:1px solid #2c3360;background:var(--panel2);color:var(--text);cursor:pointer;font-size:13px;}
+#tl-slow.sel{background:var(--accent);color:#221a05;border-color:var(--accent);}
 #tl-canvas-holder{position:relative;height:96px;background:#0b0d1d;border-radius:10px;overflow:hidden;}
 #tl-canvas{width:100%;height:100%;display:block;cursor:crosshair;}
 /* ===== overlays ===== */
@@ -135,6 +136,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
     <div id="tl-head">
       <button id="tl-play">▶</button>
       <button id="tl-stop">⏹</button>
+      <button id="tl-slow" title="حركة بطيئة">🐢</button>
       <div class="time" id="tl-time">0.0 ث / 30 ث</div>
       <div class="row" style="flex:1;margin:0;">
         <label>مدة الفيلم</label>
@@ -154,6 +156,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
 </script>
-<script type="module" src="app.js?v=8"></script>
+<script type="module" src="app.js?v=9"></script>
 </body>
 </html>
