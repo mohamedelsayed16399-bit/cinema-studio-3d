@@ -1496,7 +1496,14 @@ const LS_KEY = 'cinema3d-project';
 let saveT = null;
 export function saveLocal() {
   clearTimeout(saveT);
-  saveT = setTimeout(() => { try { localStorage.setItem(LS_KEY, serialize()); } catch (e) {} }, 600);
+  const ind = document.getElementById('save-ind');
+  if (ind) { ind.textContent = '⏳ بيحفظ…'; ind.style.color = '#8a90b8'; }
+  saveT = setTimeout(() => {
+    try {
+      localStorage.setItem(LS_KEY, serialize());
+      if (ind) { ind.textContent = '✓ محفوظ'; ind.style.color = '#4ecdc4'; }
+    } catch (e) {}
+  }, 600);
 }
 
 // ---------- شريط الأدوات ----------
@@ -1602,6 +1609,16 @@ document.getElementById('btn-share').onclick = async () => {
   requestAnimationFrame(animate);
   setTimeout(() => document.getElementById('viewport-hint').style.opacity = 0, 6000);
   if (fromLink) toast('اتحمّل فيلم من رابط مشاركة 🎬');
+  if (!localStorage.getItem('cinema3d-seen-intro')) {
+    setTimeout(() => {
+      overlay(true, 'أهلًا بيك في الاستوديو! 🎬', 'ثلاث خطوات وعملت فيلمك الأول:', [
+        { t: '1️⃣ ابدأ من قالب جاهز', fn: () => { overlay(false); document.getElementById('btn-demo').click(); } },
+        { t: '2️⃣ هبني من الصفر بنفسي', fn: () => { overlay(false); toast('أضف ممثلين وديكور من لوحة المشهد ➕'); } },
+        { t: '⏭ تخطّي', fn: () => overlay(false) },
+      ]);
+      localStorage.setItem('cinema3d-seen-intro', '1');
+    }, 1200);
+  }
 })();
 
 // ================== الجولة ٢ ==================
@@ -1771,8 +1788,16 @@ export function redo() {
   refreshAfterLoad();
 }
 addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-  if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '');
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
+  if (typing) return;
+  if (e.key === ' ') { e.preventDefault(); S.playing ? pause() : play(); }
+  else if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (S.selected) { removeObject(S.selected); renderPanel(); drawTimeline(); toast('اتمسح العنصر 🗑️'); }
+  }
+  else if (e.key === 'ArrowLeft') { seek(Math.max(0, S.time - 1)); }
+  else if (e.key === 'ArrowRight') { seek(Math.min(S.filmDur, S.time + 1)); }
 });
 setInterval(() => {
   const cur = serialize();
@@ -2229,4 +2254,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-}
+    }
