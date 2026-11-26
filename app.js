@@ -326,15 +326,18 @@ export const PROP_DEFS = {
   }},
   bike: { name: 'موتوسيكل', make() {
     const g = new THREE.Group();
-    const w1 = mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 16), MAT(0x1a1c22), -0.85, 0.55, 0);
-    const w2 = mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 16), MAT(0x1a1c22), 0.95, 0.55, 0);
+    const w1 = mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 16), MAT(0x1a1c22), 0, 0.55, -0.9);
+    const w2 = mesh(new THREE.TorusGeometry(0.42, 0.14, 8, 16), MAT(0x1a1c22), 0, 0.55, 0.95);
+    w1.rotation.y = Math.PI / 2; w2.rotation.y = Math.PI / 2;
+    w1.name = 'wheel'; w2.name = 'wheel';
     g.add(w1); g.add(w2);
-    const body = mesh(new THREE.BoxGeometry(1.6, 0.4, 0.5), MAT(0xc23a3a), 0.1, 0.95, 0);
-    body.rotation.z = -0.06; g.add(body);
-    g.add(mesh(new THREE.BoxGeometry(0.5, 0.28, 0.44), MAT(0x2a2e3a), -0.5, 1.2, 0));
-    const bar = mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8, 6), MAT(0x888), 0.95, 1.45, 0);
-    bar.rotation.x = Math.PI / 2; g.add(bar);
-    const head = mesh(new THREE.SphereGeometry(0.14, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), 1.35, 1.15, 0, false);
+    const body = mesh(new THREE.BoxGeometry(0.5, 0.4, 1.6), MAT(0xc23a3a), 0, 0.95, 0.05);
+    body.rotation.x = 0.06; g.add(body);
+    g.add(mesh(new THREE.BoxGeometry(0.44, 0.24, 0.6), MAT(0x2a2e3a), 0, 1.18, -0.45));
+    const bar = mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8, 6), MAT(0x888888), 0, 1.42, 0.9);
+    bar.rotation.z = Math.PI / 2; g.add(bar);
+    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 6), MAT(0x888888), 0, 1.1, 0.85));
+    const head = mesh(new THREE.SphereGeometry(0.14, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), 0, 1.15, 1.28, false);
     g.add(head);
     return g;
   }},
@@ -459,6 +462,11 @@ function poseCharacter(o, t) {
     } else if (gesture.name === 'sit') {
       parts.legL.rotation.x = -Math.PI / 2 * env; parts.legR.rotation.x = -Math.PI / 2 * env;
       g.position.y -= 0.45 * env;
+    } else if (gesture.name === 'ride') {
+      parts.legL.rotation.x = -Math.PI / 2.2 * env; parts.legR.rotation.x = -Math.PI / 2.2 * env;
+      parts.armL.rotation.x = -Math.PI / 2.8 * env; parts.armR.rotation.x = -Math.PI / 2.8 * env;
+      parts.body.rotation.x = 0.38 * env;
+      g.position.y += 0.55 * env;
     } else if (gesture.name === 'bow') {
       parts.body.rotation.x = env * 0.8; parts.head.rotation.x = env * 0.5;
       if (k >= 1) { parts.body.rotation.x = 0; parts.head.rotation.x = 0; }
@@ -505,7 +513,7 @@ export const GESTURES = [
   ['wave', '👋 يلوّح'], ['run', '🏃 يجري'], ['jump', '🦘 يقفز'], ['sit', '🪑 يجلس'],
   ['bow', '🙇 ينحني'], ['point', '👉 يشير'], ['clap', '👏 يصفّق'],
   ['dance', '💃 يرقص'], ['punch', '🥊 يلكم'], ['cheer', '🎉 يحتفل'], ['cry', '😢 يبكي'],
-  ['think', '🤔 يفكّر'], ['faint', '😵 يغمى عليه']
+  ['think', '🤔 يفكّر'], ['faint', '😵 يغمى عليه'], ['ride', '🏍️ يقود موتوسيكل']
 ];
 
 // ---------- اللقطات ----------
@@ -642,7 +650,7 @@ export function stopMusic() {
 export const SFX_DEFS = {
   whoosh:  { name: '💨 سووش' }, boom: { name: '💥 انفجار' }, chirp: { name: '🐦 عصافير' },
   steps:   { name: '👣 خطوات' }, wind: { name: '🌬️ رياح' }, bell: { name: '🔔 جرس' },
-  magic:   { name: '✨ سحر' }, crowd: { name: '👥 جمهور' },
+  magic:   { name: '✨ سحر' }, crowd: { name: '👥 جمهور' }, engine: { name: '🏍️ موتور' },
 };
 export function playSfx(type) {
   ensureAudio();
@@ -691,6 +699,19 @@ export function playSfx(type) {
     const src = ctx.createBufferSource(); src.buffer = buf;
     const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 800;
     src.connect(f); f.connect(out); src.start(t);
+  } else if (type === 'engine') {
+    const o = ctx.createOscillator(), g2 = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(70, t);
+    o.frequency.exponentialRampToValueAtTime(170, t + 0.5);
+    o.frequency.exponentialRampToValueAtTime(90, t + 1.6);
+    lfo.frequency.value = 28; lg.gain.value = 12;
+    lfo.connect(lg); lg.connect(o.frequency);
+    g2.gain.setValueAtTime(0.0001, t);
+    g2.gain.exponentialRampToValueAtTime(0.32, t + 0.15);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
+    o.connect(g2); g2.connect(out);
+    o.start(t); o.stop(t + 1.9); lfo.start(t); lfo.stop(t + 1.9);
   }
 }
 // مؤثرات مجدولة مع الفيلم
@@ -789,8 +810,9 @@ function applyTime(t) {
   for (const o of S.objects) {
     if (o.kind === 'char') poseCharacter(o, S.time);
     else {
-      const { p } = evalObject(o, S.time);
+      const { p, speed } = evalObject(o, S.time);
       o.group.position.set(p.x, p.y, p.z);
+      if (o.propType === 'bike' && speed > 0.5) o.group.position.y += Math.abs(Math.sin(S.time * 16)) * 0.06;
       o.group.rotation.y = p.ry || 0;
     }
   }
@@ -1964,6 +1986,63 @@ function buildDemoChase() {
   addSpot({ pos: [4, 6, 8], color: 0xffc890, intensity: 70, target: [2, 1, 2] });
   seek(0); applySun();
 }
+function buildDemoMoto() {
+  clearAll();
+  S.filmDur = 24; S.title = 'مطاردة الموتوسيكل';
+  addProp('pyramid', -30, -40, 2.8);
+  addProp('obelisk', 10, -16); addProp('obelisk', -14, -8);
+  addProp('arch', 4, -12); addProp('rock', 8, 6); addProp('rock', -12, 12); addProp('rock', 20, -2);
+  addProp('palm', 22, 4); addProp('palm', -20, 6); addProp('stall', 16, 14, 1.1);
+  const bike1 = addProp('bike', -30, 14, 1.15);
+  const bike2 = addProp('bike', -34, 17, 1.15);
+  bike2.group.traverse(m => { if (m.isMesh && m.material && m.material.color && m.material.color.getHex() === 0xc23a3a) m.material = MAT(0x2a4a8a); });
+  const thief = addCharacter('لص', { shirt: 0x2c2f45, pants: 0x1a1c28, skin: 0xc98f5e }, -30, 14);
+  const cop = addCharacter('شرطي', { shirt: 0x1a3a6a, pants: 0x14161c, skin: 0xd9a06a }, -34, 17);
+  const LEGS = [
+    { t0: 0.5, t1: 6, fx: -30, fz: 14, tx: -4, tz: 2 },
+    { t0: 6, t1: 12, fx: -4, fz: 2, tx: 12, tz: -8 },
+    { t0: 12, t1: 18, fx: 12, fz: -8, tx: 26, tz: 6 },
+  ];
+  const LEGS2 = [
+    { t0: 1.2, t1: 6.6, fx: -34, fz: 17, tx: -8, tz: 5 },
+    { t0: 6.6, t1: 12.6, fx: -8, fz: 5, tx: 8, tz: -5 },
+    { t0: 12.6, t1: 18.6, fx: 8, fz: -5, tx: 22, tz: 9 },
+  ];
+  for (const l of LEGS) { bike1.track.actions.push({ type: 'walk', ...l }); thief.track.actions.push({ type: 'walk', ...l }); }
+  for (const l of LEGS2) { bike2.track.actions.push({ type: 'walk', ...l }); cop.track.actions.push({ type: 'walk', ...l }); }
+  thief.track.actions.push({ type: 'gesture', name: 'ride', time: 0.5, dur: 18 });
+  cop.track.actions.push({ type: 'gesture', name: 'ride', time: 1.2, dur: 17.4 });
+  thief.track.actions.push({ type: 'gesture', name: 'cheer', time: 20, dur: 2.2 });
+  cop.track.actions.push({ type: 'gesture', name: 'point', time: 8, dur: 2 });
+  const sh1 = addShot('الانطلاقة', 0, 7); sh1.transition = 'fade'; sh1.shake = 0.5;
+  shotKey(sh1, 0, [-36, 3, 22], [-29, 1.5, 13], 46, bike1.id);
+  shotKey(sh1, 7, [-10, 2.2, 9], [-4, 1.2, 2], 40, bike1.id);
+  const sh2 = addShot('وسط الرمال', 7, 15); sh2.transition = 'fade'; sh2.shake = 1;
+  shotKey(sh2, 7, [2, 1.6, 6], [6, 1.2, -4], 36, bike1.id);
+  shotKey(sh2, 15, [16, 2.4, -2], [14, 1.2, -6], 40, bike1.id);
+  const sh3 = addShot('الإفلات', 15, 24); sh3.transition = 'fade'; sh3.shake = 0.5;
+  shotKey(sh3, 15, [20, 2, 2], [22, 1.2, 4], 38, bike1.id);
+  shotKey(sh3, 24, [14, 10, 24], [24, 2, 6], 54, null);
+  S.music.mood = 'tension';
+  S.sfx = [
+    { id: genId(), time: 0.6, type: 'engine' }, { id: genId(), time: 2.4, type: 'engine' },
+    { id: genId(), time: 6.2, type: 'whoosh' }, { id: genId(), time: 8, type: 'engine' },
+    { id: genId(), time: 12.2, type: 'whoosh' }, { id: genId(), time: 14, type: 'engine' },
+    { id: genId(), time: 18.4, type: 'wind' }, { id: genId(), time: 20.2, type: 'boom' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.3, dur: 2.6, text: 'مطاردة الموتوسيكل', style: 'card', color: '#e74c3c' },
+    { id: genId(), time: 21, dur: 2.6, text: 'يتبع…', style: 'title', color: '#e74c3c' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: cop.id, time: 8.2, dur: 2.6, text: 'قِف! سلّم نفسك!' },
+    { id: genId(), objId: thief.id, time: 13, dur: 2.8, text: 'الحقني لو قدرت!' },
+  ];
+  S.weather = 'dust'; setWeather('dust');
+  S.sun.tod = 0.5; S.sun.intensity = 1.3;
+  addSpot({ pos: [6, 6, 10], color: 0xffc890, intensity: 70, target: [4, 1, 0] });
+  seek(0); applySun();
+}
 function buildDemoNile() {
   clearAll();
   S.filmDur = 25; S.title = 'ليلة على النيل';
@@ -2125,6 +2204,7 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '🌙 ليلة على النيل', fn: () => { buildDemoNile(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة على النيل ▶'); } },
     { t: '💃 فرح في الحارة', fn: () => { buildDemoWedding(); refreshAfterLoad(); overlay(false); toast('مشهد: فرح في الحارة ▶'); } },
     { t: '⚽ ماتش في الحارة', fn: () => { buildDemoFootball(); refreshAfterLoad(); overlay(false); toast('مشهد: ماتش في الحارة ▶'); } },
+    { t: '🏍️ مطاردة الموتوسيكل', fn: () => { buildDemoMoto(); refreshAfterLoad(); overlay(false); toast('مشهد: مطاردة الموتوسيكل ▶'); } },
     { t: 'إلغاء', fn: () => overlay(false) },
   ]);
 };
@@ -2313,3 +2393,4 @@ function checkShotMood() {
     }
   }
 }
+
