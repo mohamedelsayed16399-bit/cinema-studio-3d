@@ -3097,6 +3097,46 @@ function buildDemoSouk() {
   seek(0); applySun();
 }
 
+function buildDemoCamp() {
+  clearAll();
+  S.filmDur = 26; S.title = 'ليلة تخييم في الصحراء';
+  S.groundColor = 0xc9a872; S.skyColor = 0; S.fogFar = 140; S.grade = 4; S.vig = 0.5; S.grain = 0.18; applyGround();
+  addProp('fire', 0, 0, 1.2);
+  addProp('tent', -9, -5, 1.2); addProp('tent', 9, -6, 1.3); addProp('tent', 0, -12, 1.4);
+  addProp('camel', -16, 2, 1); addProp('camel', 16, 4, 1.1);
+  addProp('palm', -20, -10, 1.3); addProp('palm', 22, -8, 1.2); addProp('rock', 6, 10, 1.5); addProp('rock', -8, 12, 1.2);
+  const a = addCharacter('سالم', { shirt: 0x8a5a2a, pants: 0x4a4030, skin: 0xb8804a, hair: 0x222222 }, -4, 3);
+  const b = addCharacter('ليلى', { shirt: 0x2a7bd6, pants: 0x3a3550, skin: 0xe8b88a, hair: 0x2a1810 }, 4, 3);
+  const c = addCharacter('الجد', { shirt: 0xeeeeee, pants: 0x6a5a3a, skin: 0xb8804a, hair: 0xaaaaaa }, 0, 5);
+  a.track.actions.push({ type: 'gesture', name: 'wave', time: 1, dur: 2.5 });
+  a.track.actions.push({ type: 'gesture', name: 'point', time: 12, dur: 3 });
+  b.track.actions.push({ type: 'gesture', name: 'point', time: 6, dur: 3 });
+  b.track.actions.push({ type: 'gesture', name: 'cheer', time: 17, dur: 3 });
+  c.track.actions.push({ type: 'gesture', name: 'wave', time: 9, dur: 3 });
+  c.track.actions.push({ type: 'gesture', name: 'clap', time: 20, dur: 4 });
+  [a, b, c].forEach(pinWalks);
+  const sh1 = addShot('النار', 0, 9); sh1.transition = 'fade';
+  applyCamPreset(sh1, 'dollyin', [0, 0, 1], null);
+  const sh2 = addShot('الحكاية', 9, 18); sh2.transition = 'fade';
+  applyCamPreset(sh2, 'orbit', [0, 0, 2], c.id);
+  const sh3 = addShot('النجوم', 18, 26); sh3.transition = 'fade';
+  applyCamPreset(sh3, 'crane', [0, 0, 2], null);
+  S.music.mood = 'calm';
+  S.sfx = [ { id: genId(), time: 0.6, type: 'bell' }, { id: genId(), time: 18, type: 'magic' } ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'ليلة تخييم', style: 'card', color: '#ffc880' },
+    { id: genId(), time: 21, dur: 4, text: 'نجوم الصحراء ✨', style: 'title', color: '#ffffff' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: a.id, time: 1.2, dur: 2.4, text: 'الجو تحفة النهارده!' },
+    { id: genId(), objId: b.id, time: 6.2, dur: 2.6, text: 'بصوا النجوم كتير أوي' },
+    { id: genId(), objId: c.id, time: 9.4, dur: 3, text: 'زمان كنا نعرف الطريق بيها' },
+  ];
+  S.trails = 'none'; S.weather = 'firefly'; setWeather('firefly');
+  S.sun.tod = 0.58; S.sun.intensity = 0.9; S.ambient = 1.4; S.sun.base = 0.58; S.sun.tl = { on: true, to: 0.92 };
+  seek(0); applySun();
+}
+
 function pinWalks(o) {
   const keys = [o.track.keys[0]];
   for (const a of o.track.actions) if (a.type === 'walk') {
@@ -3179,6 +3219,7 @@ const GALLERY = [
   { e: '🌙', n: 'ليلة رمضان في الحارة', d: 'فوانيس ومسحراتي وتوك توك', f: () => buildDemoRamadan(), c: ['مصر', 'ليل', 'بهجة'], g: ['#c98a2a', '#1a1030'] },
   { e: '🎓', n: 'حفل التخرج', d: 'تكريم واحتفال وقبعات', f: () => buildDemoGrad(), c: ['بهجة', 'ليل'], g: ['#7a2ad6', '#1a1a2a'] },
   { e: '🕌', n: 'مولد الحي', d: 'أنوار وزحمة ومرور سريع بالكاميرا', f: () => buildDemoMoulid(), c: ['مصر', 'ليل', 'بهجة'], g: ['#ff9ad0', '#1c1030'] },
+  { e: '⛺', n: 'ليلة تخييم', d: 'نار ونجوم وحكاية الجد في الصحراء', f: () => buildDemoCamp(), c: ['مصر', 'ليل', 'دراما'], g: ['#d98a3a', '#0a0a2a'] },
   { e: '🧺', n: 'سوق الجمعة', d: 'زحمة وبياعين وتوك توك بيعدي جنبك', f: () => buildDemoSouk(), c: ['مصر', 'بهجة'], g: ['#e0a040', '#6a4a2a'] },
   { e: '⚓', n: 'فجر المرسى', d: 'مراكب الصيادين تبحر مع شروق الشمس', f: () => buildDemoHarbor(), c: ['مصر', 'دراما'], g: ['#2a78a8', '#f0b070'] },
   { e: '⛲', n: 'ميدان المدينة', d: 'نافورة وأتوبيس وصباح جديد', f: () => buildDemoSquare(), c: ['مصر', 'بهجة'], g: ['#7fb8e8', '#9a9488'] },
