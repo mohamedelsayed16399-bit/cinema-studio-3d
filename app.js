@@ -515,7 +515,7 @@ export function sampleTrack(o, t) {
   for (let i = 0; i < keys.length - 1; i++) {
     const a = keys[i], b = keys[i + 1];
     if (t >= a.t && t <= b.t) {
-      const k = smooth((t - a.t) / Math.max(0.001, b.t - a.t));
+      const k = a.lin ? (t - a.t) / Math.max(0.001, b.t - a.t) : smooth((t - a.t) / Math.max(0.001, b.t - a.t));
       return { x: lerp(a.x, b.x, k), y: 0, z: lerp(a.z, b.z, k), ry: lerp(a.ry, b.ry, k) };
     }
   }
@@ -667,6 +667,32 @@ export function activeShot(t) {
   if (!S.shots.length) return null;
   return S.shots.find(s => t >= s.t0 && t < s.t1) || S.shots[S.shots.length - 1];
 }
+
+// ---------- حركات كاميرا جاهزة ----------
+export const CAM_PRESETS = [
+  ['orbit', '🔄 دوران حول الهدف'], ['dollyin', '🔍 اقتراب بطيء'], ['pullout', '↔️ ابتعاد وكشف'],
+  ['crane', '🏗️ رافعة للأعلى'], ['whip', '⚡ تتبع جانبي'], ['hero', '🦸 لقطة بطولية من تحت'],
+];
+export function applyCamPreset(sh, type, center, lookObj) {
+  const [cx, cy, cz] = center, d = Math.max(0.5, sh.t1 - sh.t0), t0 = sh.t0;
+  sh.keys = [];
+  const look = [cx, cy + 1.3, cz];
+  const add = (t, pos, lk, fov, lin) => { shotKey(sh, t, pos, lk, fov, lookObj); const k = sh.keys.find(q => Math.abs(q.t - t) < 0.05); if (k) k.lin = !!lin; };
+  if (type === 'orbit') {
+    const R = 9, N = 8;
+    for (let i = 0; i <= N; i++) { const a = -0.5 + (i / N) * Math.PI * 1.5; add(t0 + d * i / N, [cx + Math.sin(a) * R, cy + 3.2, cz + Math.cos(a) * R], look, 46, true); }
+  } else if (type === 'dollyin') {
+    add(t0, [cx + 3, cy + 3.5, cz + 16], look, 50, false); add(t0 + d, [cx + 1, cy + 2, cz + 4.5], look, 38, false);
+  } else if (type === 'pullout') {
+    add(t0, [cx + 1, cy + 1.8, cz + 4], look, 36, false); add(t0 + d, [cx + 8, cy + 9, cz + 24], [cx, cy + 1, cz], 55, false);
+  } else if (type === 'crane') {
+    add(t0, [cx - 5, cy + 1.2, cz + 8], look, 42, false); add(t0 + d, [cx + 2, cy + 15, cz + 12], [cx, cy, cz], 52, false);
+  } else if (type === 'whip') {
+    add(t0, [cx - 14, cy + 2, cz + 6], look, 40, true); add(t0 + d, [cx + 14, cy + 2, cz + 6], look, 40, true);
+  } else if (type === 'hero') {
+    add(t0, [cx + 2, cy + 0.3, cz + 7], [cx, cy + 2.4, cz], 62, false); add(t0 + d, [cx - 2, cy + 0.5, cz + 4.5], [cx, cy + 2.6, cz], 52, false);
+  }
+}
 function sampleShotCam(sh, t) {
   const keys = sh.keys;
   if (!keys.length) return null;
@@ -679,7 +705,7 @@ function sampleShotCam(sh, t) {
       return {
         pos: [lerp(a.pos[0], b.pos[0], k), lerp(a.pos[1], b.pos[1], k), lerp(a.pos[2], b.pos[2], k)],
         look: [lerp(a.look[0], b.look[0], k), lerp(a.look[1], b.look[1], k), lerp(a.look[2], b.look[2], k)],
-        fov: lerp(a.fov, b.fov, k)
+        fov: lerp(a.fov, b.fov, k), lookObj: (a.lookObj && a.lookObj === b.lookObj) ? a.lookObj : null
       };
     }
   }
@@ -1392,6 +1418,8 @@ function renderShotsTab() {
         <option value="0.5" ${sh.shake === 0.5 ? 'selected' : ''}>خفيفة</option>
         <option value="1" ${sh.shake === 1 ? 'selected' : ''}>قوية</option></select></div>
       <div class="row"><label>تتبع المحدد</label><input type="checkbox" id="sh-follow-${sh.id}" style="width:18px;height:18px;accent-color:var(--accent)" ${getObj(S.selected) && getObj(S.selected).kind === 'char' ? '' : 'disabled'}></div>
+      <div class="row"><label>حركة كاميرا جاهزة</label><select id="sh-pre-${sh.id}">${CAM_PRESETS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
+      <button class="chip-btn" data-shot-pre="${sh.id}" style="width:100%;margin-bottom:6px">🎬 طبّق الحركة على هذه اللقطة</button>
       <button class="chip-btn sel" data-shot-key="${sh.id}" style="width:100%">📸 التقط الكاميرا الحالية @ ${S.time.toFixed(1)}ث</button>
       <div class="obj-list" style="max-height:80px;margin-top:6px">`;
     sh.keys.forEach((k, ki) => {
@@ -1415,6 +1443,15 @@ function renderShotsTab() {
     sh.keys.forEach(k => { if (k.t > S.time) { /* تبقى */ } });
     renderPanel(); drawTimeline(); toast('تم التقسيم ✂️');
   };
+  panelBody.querySelectorAll('[data-shot-pre]').forEach(b => b.onclick = () => {
+    const sh = S.shots.find(s => s.id === b.dataset.shotPre);
+    const type = document.getElementById('sh-pre-' + sh.id).value;
+    const sel = getObj(S.selected);
+    let c = controls.target.toArray(), lo = null;
+    if (sel) { c = [sel.group.position.x, sel.group.position.y, sel.group.position.z]; if (sel.kind === 'char') lo = sel.id; }
+    applyCamPreset(sh, type, c, lo);
+    toast('تم تطبيق: ' + CAM_PRESETS.find(p => p[0] === type)[1] + (sel ? ' على ' + sel.name : '')); renderPanel(); drawTimeline(); saveLocal();
+  });
   panelBody.querySelectorAll('[data-shot-key]').forEach(b => b.onclick = () => {
     const sh = S.shots.find(s => s.id === b.dataset.shotKey);
     const fovEl = document.getElementById('sh-fov-' + sh.id);
