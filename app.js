@@ -1351,8 +1351,12 @@ function activeTextAt(t) {
   return S.texts.find(x => t >= x.time && t <= x.time + x.dur) || null;
 }
 function updateTextOverlay(t) {
-  const at = S.playing ? activeTextAt(t) : activeTextAt(t) || (S.texts.length ? S.texts.find(x => Math.abs(x.time - t) < 0.4) : null);
-  const key = at ? at.id + '|' + at.text + '|' + at.style + '|' + at.color + (S.playing ? '' : '|preview') : '';
+  let at = activeTextAt(t);
+  if (!at && !S.playing && S.texts.length) {
+    const near = S.texts.find(x => Math.abs(x.time - t) < 0.4 && x.style !== 'card');
+    at = near || null;
+  }
+  const key = at ? at.id + '|' + at.text + '|' + at.style + '|' + at.color : '';
   if (key === textKey) return;
   textKey = key;
   if (textSprite) { overlayScene.remove(textSprite); textSprite.material.map.dispose(); textSprite.material.dispose(); textSprite = null; }
@@ -1375,6 +1379,7 @@ function ensureFadeMesh() {
 }
 function updateFade(t) {
   const fm = ensureFadeMesh();
+  if (!S.playing) { fm.material.opacity = 0; return; }
   let op = 0;
   const sh = activeShot(t);
   if (sh && sh.transition === 'fade') {
