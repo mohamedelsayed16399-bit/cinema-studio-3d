@@ -17,6 +17,7 @@ export const S = {
   spots: [],     // {id,color,intensity,pos:[x,y,z],target:[x,y,z]}
   selected: null,
   grade: 0,          // فلتر لوني: 0 بدون، 1 سيبيا، 2 أبيض وأسود، 3 مشبع، 4 غروب دافئ
+  groundColor: 0xd9c391,   // سطح الأرض: صحراء افتراضيًا
   title: 'فيلمي القصير'
 };
 let nid = 1;
@@ -101,6 +102,7 @@ scene.add(ground);
 const grid = new THREE.PolarGridHelper(150, 24, 8, 64, 0x000000, 0x9a8a68);
 grid.position.y = 0.02; grid.material.opacity = 0.25; grid.material.transparent = true;
 scene.add(grid);
+export function applyGround() { ground.material.color.set(S.groundColor || 0xd9c391); }
 
 function skyColor(tod) {
   // 0 فجر .. 0.25 ظهر .. 0.5 غروب .. 0.75 ليل
@@ -359,6 +361,48 @@ export const PROP_DEFS = {
     g.add(head);
     return g;
   }},
+  rocket: { name: 'صاروخ', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(1.2, 1.2, 6, 16), MAT(0xe8e8ec, 0.35), 0, 4.5, 0));
+    g.add(mesh(new THREE.ConeGeometry(1.2, 2.2, 16), MAT(0xc23a3a, 0.4), 0, 8.6, 0));
+    g.add(mesh(new THREE.CylinderGeometry(1.25, 1.35, 0.8, 16), MAT(0x3a3f4a, 0.4), 0, 1.3, 0));
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      const fin = mesh(new THREE.BoxGeometry(0.15, 1.8, 1.2), MAT(0xc23a3a, 0.4), Math.cos(a) * 1.35, 1.6, Math.sin(a) * 1.35);
+      fin.rotation.y = -a; g.add(fin);
+    }
+    const win = mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.1, 12), new THREE.MeshStandardMaterial({ color: 0x6ab0de, roughness: 0.2, metalness: 0.6 }), 0, 6, 1.16);
+    win.rotation.x = Math.PI / 2; g.add(win);
+    const l = new THREE.PointLight(0xffa050, 1.8, 12, 1.6); l.position.y = 0.6; l.name = 'firelight';
+    g.add(l);
+    return g;
+  }},
+  flag: { name: 'علم', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.04, 0.05, 3.2, 8), MAT(0xc0c4cc, 0.4), 0, 1.6, 0));
+    const f = mesh(new THREE.BoxGeometry(1.3, 0.8, 0.03), MAT(0xc0392b, 0.7), 0.68, 2.75, 0);
+    f.name = 'flagcloth'; g.add(f);
+    return g;
+  }},
+  rover: { name: 'عربة فضاء', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(2.2, 0.5, 1.3), MAT(0xd8d4cc, 0.5), 0, 0.85, 0));
+    for (const dx of [-0.8, 0, 0.8]) for (const dz of [-0.75, 0.75])
+      g.add(mesh(new THREE.TorusGeometry(0.28, 0.1, 8, 14), MAT(0x2a2e3a), dx, 0.32, dz));
+    g.add(mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.1, 6), MAT(0x9a9ea8, 0.5), -0.8, 1.6, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.4, 0.25, 0.25), MAT(0x3a3f4a, 0.4), -0.8, 2.2, 0));
+    const dish = mesh(new THREE.SphereGeometry(0.4, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), MAT(0xe8e8ec, 0.4), 0.7, 1.35, 0);
+    dish.rotation.z = -0.7; g.add(dish);
+    return g;
+  }},
+  planet: { name: 'كوكب في السماء', make() {
+    const g = new THREE.Group();
+    const p = mesh(new THREE.SphereGeometry(6, 24, 18), new THREE.MeshStandardMaterial({ color: 0x3a7bd5, roughness: 0.7, emissive: 0x1a3a66, emissiveIntensity: 0.45 }), 0, 26, 0);
+    p.castShadow = false; p.receiveShadow = false; p.name = 'planetball'; g.add(p);
+    const land = mesh(new THREE.SphereGeometry(6.06, 12, 10, 0, Math.PI * 0.9, 0, Math.PI * 0.55), new THREE.MeshStandardMaterial({ color: 0x4a9a4a, roughness: 0.8, emissive: 0x163a16, emissiveIntensity: 0.4 }), 0, 26, 0);
+    land.castShadow = false; land.receiveShadow = false; land.name = 'planetball'; g.add(land);
+    return g;
+  }},
 };
 
 // ---------- إدارة العناصر ----------
@@ -514,6 +558,12 @@ function poseCharacter(o, t) {
     } else if (gesture.name === 'think') {
       parts.armR.rotation.x = -2.1 * env; parts.armR.rotation.y = 0.6 * env;
       parts.head.rotation.x = 0.18 * env; parts.head.rotation.z = 0.15 * env;
+    } else if (gesture.name === 'float') {
+      const bob = Math.sin(k * Math.PI * 2) * 0.35;
+      g.position.y = 1.1 + bob;
+      parts.armL.rotation.z = -1.2 * env - bob * 0.4; parts.armR.rotation.z = 1.2 * env + bob * 0.4;
+      parts.legL.rotation.x = 0.4 * env; parts.legR.rotation.x = 0.5 * env;
+      parts.body.rotation.z = Math.sin(k * Math.PI * 2 + 1) * 0.12;
     } else if (gesture.name === 'faint') {
       const f = Math.min(1, k * 1.4);
       g.rotation.z = -f * Math.PI / 2 * 0.94;
@@ -531,7 +581,8 @@ export const GESTURES = [
   ['wave', '👋 يلوّح'], ['run', '🏃 يجري'], ['jump', '🦘 يقفز'], ['sit', '🪑 يجلس'],
   ['bow', '🙇 ينحني'], ['point', '👉 يشير'], ['clap', '👏 يصفّق'],
   ['dance', '💃 يرقص'], ['punch', '🥊 يلكم'], ['cheer', '🎉 يحتفل'], ['cry', '😢 يبكي'],
-  ['think', '🤔 يفكّر'], ['faint', '😵 يغمى عليه'], ['ride', '🏍️ يقود موتوسيكل']
+  ['think', '🤔 يفكّر'], ['faint', '😵 يغمى عليه'], ['ride', '🏍️ يقود موتوسيكل'],
+  ['float', '🧑‍🚀 يطفو']
 ];
 
 // ---------- اللقطات ----------
@@ -755,6 +806,7 @@ export function serialize() {
     shots: S.shots, sfx: S.sfx,
     spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
     bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0, nameTags: !!S.nameTags,
+    groundColor: S.groundColor || 0xd9c391,
   });
 }
 export function deserialize(json) {
@@ -779,6 +831,7 @@ export function deserialize(json) {
   S.slowmo = d.slowmo || false;
   S.grade = d.grade || 0;
   S.nameTags = d.nameTags || false;
+  S.groundColor = d.groundColor || 0xd9c391; applyGround();
   const slBtn = document.getElementById('tl-slow'); if (slBtn) slBtn.classList.toggle('sel', S.slowmo);
   clearBubbleSprites();
   setWeather(d.weather || 'none');
@@ -839,6 +892,8 @@ function applyTime(t) {
     if (m.name === 'flame') m.scale.setScalar(1 + Math.sin(t * 12 + m.id) * 0.15);
     if (m.name === 'firelight') m.intensity = 2 + Math.sin(t * 10) * 0.5;
     if (m.name === 'laserbeam') m.visible = Math.sin(t * 2.4 + m.id) > -0.75;
+    if (m.name === 'flagcloth') { m.rotation.y = Math.sin(t * 2.8 + m.id) * 0.22; m.scale.x = 1 + Math.sin(t * 5 + m.id) * 0.07; }
+    if (m.name === 'planetball') m.rotation.y = t * 0.04;
   });
   // كشافات تكنس المكان أو تنبض كإنذار
   for (const sp of S.spots) {
@@ -1393,6 +1448,8 @@ function renderLightTab() {
       <option value="rain" ${S.weather === 'rain' ? 'selected' : ''}>مطر 🌧️</option>
       <option value="snow" ${S.weather === 'snow' ? 'selected' : ''}>ثلج ❄️</option>
       <option value="dust" ${S.weather === 'dust' ? 'selected' : ''}>عاصفة رملية 🌪️</option></select></div>
+    <div class="row"><label>لون الأرض</label><select id="ground-sel">
+      ${[[0xd9c391, 'صحراء 🏜️'], [0x7a9a5a, 'عشب 🌿'], [0x9a9aa2, 'قمر 🌕'], [0xe8ecf2, 'ثلج ❄️'], [0x3a3f4a, 'ليل أسفلت 🌃']].map(([v, n]) => `<option value="${v}" ${S.groundColor === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="row"><label>فلتر لوني</label><select id="grade-sel">
       ${GRADES.map(([v, n]) => `<option value="${v}" ${S.grade === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
   </div>
@@ -1411,6 +1468,7 @@ function renderLightTab() {
   document.getElementById('amb-int').oninput = e => { S.ambient = +e.target.value; applySun(); };
   document.getElementById('weather-sel').onchange = e => { setWeather(e.target.value); toast('الطقس: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('grade-sel').onchange = e => { S.grade = +e.target.value; toast('الفلتر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
+  document.getElementById('ground-sel').onchange = e => { S.groundColor = +e.target.value; applyGround(); toast('الأرض: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('spot-add').onclick = () => {
     addSpot({ pos: [Math.random() * 10 - 5, 7, Math.random() * 8 + 2], color: 0xfff2cc, intensity: 60 });
     renderPanel();
@@ -2276,6 +2334,73 @@ function buildDemoFootball() {
 }
 
 // ---------- اختيار القالب ----------
+function pinWalks(o) {
+  const keys = [o.track.keys[0]];
+  for (const a of o.track.actions) if (a.type === 'walk') {
+    keys.push({ t: a.t0, x: a.fx, y: 0, z: a.fz, ry: Math.atan2(a.tx - a.fx, a.tz - a.fz) });
+    keys.push({ t: a.t1, x: a.tx, y: 0, z: a.tz, ry: Math.atan2(a.tx - a.fx, a.tz - a.fz) });
+  }
+  keys.sort((a, b) => a.t - b.t);
+  o.track.keys = keys;
+}
+
+function buildDemoSpace() {
+  clearAll();
+  S.filmDur = 28; S.title = 'رحلة إلى القمر';
+  S.groundColor = 0x9a9aa2; applyGround();
+  addProp('rocket', 14, -14, 1.2);
+  addProp('rover', -8, -4);
+  addProp('flag', 2, -2);
+  addProp('rock', -14, 6, 1.6); addProp('rock', 8, 8, 0.9); addProp('rock', -4, 14, 1.2);
+  addProp('planet', -30, -55, 1.4);
+  const ast1 = addCharacter('رائد', { shirt: 0xe8e8ec, pants: 0xc8ccd4, skin: 0xc98f5e, hair: 0xe8e8ec }, 12, -10);
+  const ast2 = addCharacter('رائدة', { shirt: 0xe8e8ec, pants: 0xc8ccd4, skin: 0xd9a06a, hair: 0xe8e8ec }, 14, -8);
+  ast1.track.actions.push({ type: 'walk', t0: 0.5, t1: 5, fx: 12, fz: -10, tx: 4, tz: -4 });
+  ast1.track.actions.push({ type: 'gesture', name: 'wave', time: 5.5, dur: 2.5 });
+  ast1.track.actions.push({ type: 'walk', t0: 8.5, t1: 11.5, fx: 4, fz: -4, tx: 2, tz: -1 });
+  ast1.track.actions.push({ type: 'gesture', name: 'point', time: 12, dur: 2 });
+  ast1.track.actions.push({ type: 'gesture', name: 'cheer', time: 14.5, dur: 3 });
+  ast1.track.actions.push({ type: 'gesture', name: 'float', time: 19, dur: 4 });
+  ast1.track.actions.push({ type: 'walk', t0: 23.5, t1: 27, fx: 2, fz: -1, tx: -6, tz: 2 });
+  ast2.track.actions.push({ type: 'walk', t0: 1, t1: 6, fx: 14, fz: -8, tx: 6, tz: -6 });
+  ast2.track.actions.push({ type: 'gesture', name: 'jump', time: 7, dur: 2.2 });
+  ast2.track.actions.push({ type: 'walk', t0: 10, t1: 13.5, fx: 6, fz: -6, tx: -6, tz: -3 });
+  ast2.track.actions.push({ type: 'gesture', name: 'think', time: 14, dur: 2.5 });
+  ast2.track.actions.push({ type: 'gesture', name: 'float', time: 17, dur: 4 });
+  ast2.track.actions.push({ type: 'gesture', name: 'clap', time: 22, dur: 3 });
+  ast2.track.actions.push({ type: 'walk', t0: 25, t1: 28, fx: -6, fz: -3, tx: -9, tz: -4 });
+  pinWalks(ast1); pinWalks(ast2);
+  const sh1 = addShot('الهبوط', 0, 9); sh1.transition = 'fade';
+  shotKey(sh1, 0, [24, 6, 6], [10, 3, -10], 48, ast1.id);
+  shotKey(sh1, 9, [10, 2.4, 4], [4, 1.4, -4], 42, ast1.id);
+  const sh2 = addShot('غرس العلم', 9, 18); sh2.transition = 'fade';
+  shotKey(sh2, 9, [6, 2, 3], [2, 1.6, -2], 40, ast1.id);
+  shotKey(sh2, 18, [-2, 2.6, 4], [1, 1.8, -2], 44, ast1.id);
+  const sh3 = addShot('طفو على سطح القمر', 18, 28); sh3.transition = 'fade'; sh3.shake = 0;
+  shotKey(sh3, 18, [2, 2.6, 8], [-2, 1.8, -2], 50, null);
+  shotKey(sh3, 28, [-6, 6, 14], [-18, 12, -40], 54, null);
+  S.music.mood = 'epic';
+  S.sfx = [
+    { id: genId(), time: 0.3, type: 'boom' }, { id: genId(), time: 2, type: 'wind' },
+    { id: genId(), time: 5.6, type: 'magic' }, { id: genId(), time: 12.2, type: 'magic' },
+    { id: genId(), time: 14.6, type: 'crowd' }, { id: genId(), time: 19, type: 'whoosh' },
+    { id: genId(), time: 23, type: 'chirp' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.4, dur: 2.8, text: 'رحلة إلى القمر', style: 'card', color: '#6ab0de' },
+    { id: genId(), time: 25.5, dur: 2.4, text: 'خطوة صغيرة… حلم كبير', style: 'title', color: '#e8ecf2' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: ast1.id, time: 12.2, dur: 2.4, text: 'هنا! العلم هيرفع هنا' },
+    { id: genId(), objId: ast2.id, time: 17.4, dur: 2.6, text: 'أنا طايرة… الجاذبية خفيفة!' },
+  ];
+  S.weather = 'none';
+  S.sun.tod = 0.75; S.sun.intensity = 2.4; S.ambient = 0.85;
+  addSpot({ pos: [0, 12, 10], color: 0xdfe8ff, intensity: 90, target: [2, 0, -2] });
+  addSpot({ pos: [-10, 9, -6], color: 0xbfd0ff, intensity: 55, target: [-4, 0, -2] });
+  seek(0); applySun();
+}
+
 document.getElementById('btn-demo').onclick = () => {
   overlay(true, '', 'اختر مشهدًا جاهزًا للانطلاق منه — كل قالب قصة كاملة بلقطات وموسيقى ونصوص:', [
     { t: '🏜️ لقاء عند الأهرام', fn: () => { buildDemo(); refreshAfterLoad(); overlay(false); toast('مشهد: لقاء عند الأهرام ▶'); } },
@@ -2285,6 +2410,7 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '⚽ ماتش في الحارة', fn: () => { buildDemoFootball(); refreshAfterLoad(); overlay(false); toast('مشهد: ماتش في الحارة ▶'); } },
     { t: '🏍️ مطاردة الموتوسيكل', fn: () => { buildDemoMoto(); refreshAfterLoad(); overlay(false); toast('مشهد: مطاردة الموتوسيكل ▶'); } },
     { t: '🚨 سرقة المتحف', fn: () => { buildDemoHeist(); refreshAfterLoad(); overlay(false); toast('مشهد: سرقة المتحف ▶'); } },
+    { t: '🚀 رحلة إلى القمر', fn: () => { buildDemoSpace(); refreshAfterLoad(); overlay(false); toast('مشهد: رحلة إلى القمر ▶'); } },
     { t: 'إلغاء', fn: () => overlay(false) },
   ]);
 };
@@ -2473,5 +2599,6 @@ function checkShotMood() {
     }
   }
 }
+
 
 
