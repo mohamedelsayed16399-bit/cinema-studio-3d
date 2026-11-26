@@ -1004,6 +1004,7 @@ export function clearAll() {
   setWeather('none');
   for (const sp of [...S.spots]) removeSpot(sp.id);
   S.selected = null; S.time = 0;
+  if (S.sun) { S.sun.tl = null; S.sun.base = null; }
   S.grade = 0; S.trails = 'none'; clearTrails(); S.groundColor = 0xd9c391; S.skyColor = 0; S.fogFar = 220; applyGround();
 }
 
@@ -1038,6 +1039,7 @@ export const filmCam = new THREE.PerspectiveCamera(50, 1, 0.1, 600);
 
 function applyTime(t) {
   S.time = Math.max(0, Math.min(S.filmDur, t));
+  if (S.sun && S.sun.tl && S.sun.tl.on && S.sun.base != null) { S.sun.tod = S.sun.base + (S.sun.tl.to - S.sun.base) * (S.time / Math.max(1, S.filmDur)); applySun(); }
   for (const o of S.objects) {
     if (o.kind === 'char') poseCharacter(o, S.time);
     else {
@@ -1623,6 +1625,10 @@ function renderLightTab() {
     <div class="row"><label>الوقت</label><input type="range" id="sun-tod" min="0" max="1" step="0.01" value="${S.sun.tod}"><span style="font-size:12px;color:var(--accent);font-weight:700">${todName}</span></div>
     <div class="row"><label>قوة الشمس</label><input type="range" id="sun-int" min="0" max="2.5" step="0.05" value="${S.sun.intensity}"></div>
     <div class="row"><label>إضاءة عامة</label><input type="range" id="amb-int" min="0" max="1.5" step="0.05" value="${S.ambient}"></div>
+    <div class="sec"><h4>⏳ مرور الزمن (شروق → ليل)</h4>
+      <div class="row"><label><input type="checkbox" id="tl-on" ${S.sun.tl && S.sun.tl.on ? 'checked' : ''}> فعّل تغيّر الوقت خلال الفيلم</label></div>
+      <div class="row"><label>الوقت في النهاية</label><input type="range" id="tl-to" min="0" max="1" step="0.01" value="${S.sun.tl ? S.sun.tl.to : 0.75}"></div>
+      <div style="font-size:12px;opacity:.7">يبدأ من وقت اليوم المحدد فوق وينتهي عند هذا الوقت، والسماء والشمس والنجوم تتغير مع الفيلم.</div></div>
     <div class="sec"><h4>🎨 أجواء جاهزة بضغطة</h4><div style="display:flex;flex-wrap:wrap;gap:6px">${ATMOS.map(([k, n]) => `<button class="chip-btn" data-atmos="${k}">${n}</button>`).join('')}</div></div>
     <div class="row"><label>أثر خلف المتحركين</label><select id="trail-sel">${TRAIL_TYPES.map(([v, n]) => `<option value="${v}" ${S.trails === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="row"><label>الطقس</label><select id="weather-sel">
@@ -1649,7 +1655,13 @@ function renderLightTab() {
   }
   html += `</div></div>`;
   panelBody.innerHTML = html;
-  document.getElementById('sun-tod').oninput = e => { S.sun.tod = +e.target.value; applySun(); renderPanel(); };
+  document.getElementById('sun-tod').oninput = e => { S.sun.tod = +e.target.value; if (S.sun.tl && S.sun.tl.on) S.sun.base = S.sun.tod; applySun(); renderPanel(); };
+  document.getElementById('tl-on').onchange = e => {
+    if (e.target.checked) { S.sun.base = S.sun.tod; S.sun.tl = { on: true, to: S.sun.tl ? S.sun.tl.to : 0.75 }; toast('⏳ مرور الزمن شغّال'); applyTime(S.time); }
+    else { if (S.sun.base != null) S.sun.tod = S.sun.base; if (S.sun.tl) S.sun.tl.on = false; applySun(); toast('تم إيقاف مرور الزمن'); }
+    renderPanel(); saveLocal();
+  };
+  document.getElementById('tl-to').oninput = e => { if (!S.sun.tl) S.sun.tl = { on: false, to: 0.75 }; S.sun.tl.to = +e.target.value; if (S.sun.tl.on) applyTime(S.time); };
   document.getElementById('sun-int').oninput = e => { S.sun.intensity = +e.target.value; applySun(); };
   document.getElementById('amb-int').oninput = e => { S.ambient = +e.target.value; applySun(); };
   panelBody.querySelectorAll('[data-atmos]').forEach(b => b.onclick = () => { applyAtmos(b.dataset.atmos); toast('الأجواء: ' + b.textContent); saveLocal(); renderPanel(); });
@@ -2038,6 +2050,7 @@ export const ATMOS = [
   ['noon', '☀️ ظهر مشرق', { tod: 0.25, sun: 1.3, amb: 1.0, sky: 0x6ec6ff, fog: 220, grade: 3, weather: 'none' }],
 ];
 export function applyAtmos(key) {
+  if (S.sun) { S.sun.tl = null; S.sun.base = null; }
   const a = ATMOS.find(x => x[0] === key); if (!a) return;
   const c = a[2];
   S.sun.tod = c.tod; S.sun.intensity = c.sun; S.ambient = c.amb;
@@ -2696,7 +2709,7 @@ function buildDemoUnder() {
 function buildDemoCorniche() {
   clearAll();
   S.filmDur = 26; S.title = 'غروب الكورنيش';
-  S.groundColor = 0xc9b48c; S.skyColor = 0xf0a060; S.fogFar = 140; S.grade = 4; applyGround();
+  S.groundColor = 0xc9b48c; S.skyColor = 0; S.fogFar = 140; S.grade = 4; applyGround();
   addProp('boat', -22, -26, 1.5); addProp('boat', 6, -34, 1.2); addProp('boat', 28, -22, 1.3);
   for (let i = 0; i < 5; i++) addProp('streetlamp', -20 + i * 10, 6, 1);
   addProp('palm', -14, -18, 1.2); addProp('palm', 12, -20, 1.3); addProp('palm', 26, -16);
@@ -2750,7 +2763,7 @@ function buildDemoCorniche() {
   ];
   S.trails = 'dust';
   S.weather = 'none'; setWeather('none');
-  S.sun.tod = 0.46; S.sun.intensity = 1.3; S.ambient = 0.8;
+  S.sun.tod = 0.38; S.sun.intensity = 1.3; S.ambient = 0.8; S.sun.base = 0.38; S.sun.tl = { on: true, to: 0.68 };
   addSpot({ pos: [6, 12, 8], color: 0xffd9a0, intensity: 55, target: [4, 0, 3] });
   seek(0); applySun();
 }
