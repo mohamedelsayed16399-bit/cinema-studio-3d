@@ -1739,6 +1739,61 @@ function buildDemoNile() {
   addSpot({ pos: [0, 5, 8], color: 0xffb060, intensity: 90, target: [0, 1, 4] });
   seek(0); applySun();
 }
+function buildDemoWedding() {
+  clearAll();
+  S.filmDur = 25; S.title = 'فرح في الحارة';
+  addProp('house', -14, 8); addProp('house', 14, 8); addProp('house', 0, 16, 1.2);
+  addProp('palm', -18, -4); addProp('palm', 18, -4);
+  addProp('fire', 0, 2); addProp('tent', -10, -10, 1.2); addProp('tent', 10, -10, 1.2);
+  const groom = addCharacter('العريس', { shirt: 0xf5f5f5, pants: 0x1a1c28, skin: 0xb87850 }, -2, -2);
+  const bride = addCharacter('العروسة', { shirt: 0xe8b4d8, pants: 0xf5f5f5, hair: 0x120e0a }, 2, -2);
+  const friend1 = addCharacter('صديق', { shirt: 0x3a6ad4, pants: 0x2c2f45 }, -6, 2);
+  const friend2 = addCharacter('صديقة', { shirt: 0xd43a6a, pants: 0x2c2f45, hair: 0x2a1a0a }, 6, 2);
+  groom.track.actions.push({ type: 'walk', t0: 0.5, t1: 3.5, fx: -2, fz: -2, tx: 0, tz: 0 });
+  groom.track.actions.push({ type: 'gesture', name: 'dance', time: 5, dur: 5 });
+  groom.track.actions.push({ type: 'gesture', name: 'cheer', time: 11, dur: 3 });
+  groom.track.actions.push({ type: 'gesture', name: 'bow', time: 20, dur: 2.5 });
+  bride.track.actions.push({ type: 'walk', t0: 0.5, t1: 3.5, fx: 2, fz: -2, tx: 0.8, tz: 0.4 });
+  bride.track.actions.push({ type: 'gesture', name: 'dance', time: 5.5, dur: 5 });
+  bride.track.actions.push({ type: 'gesture', name: 'wave', time: 11.5, dur: 2.5 });
+  bride.track.actions.push({ type: 'gesture', name: 'clap', time: 20.5, dur: 2.5 });
+  friend1.track.actions.push({ type: 'gesture', name: 'clap', time: 4, dur: 3 });
+  friend1.track.actions.push({ type: 'gesture', name: 'dance', time: 7.5, dur: 4 });
+  friend1.track.actions.push({ type: 'gesture', name: 'cheer', time: 14, dur: 2.5 });
+  friend1.track.actions.push({ type: 'walk', t0: 16, t1: 20, fx: -6, fz: 2, tx: -3, tz: 1 });
+  friend2.track.actions.push({ type: 'gesture', name: 'dance', time: 4.5, dur: 5 });
+  friend2.track.actions.push({ type: 'gesture', name: 'cheer', time: 10, dur: 2.5 });
+  friend2.track.actions.push({ type: 'gesture', name: 'clap', time: 15, dur: 3 });
+  friend2.track.actions.push({ type: 'gesture', name: 'jump', time: 19, dur: 1.5 });
+  const sh1 = addShot('دخلة العريس', 0, 8); sh1.transition = 'fade';
+  shotKey(sh1, 0, [0, 7, 18], [0, 2, -1], 52);
+  shotKey(sh1, 8, [6, 3.5, 9], [0, 1.5, 0], 44);
+  const sh2 = addShot('الرقصة', 8, 16); sh2.transition = 'fade'; sh2.mood = 'oriental';
+  shotKey(sh2, 8, [-7, 2.5, 6], [0, 1.2, 0], 40);
+  shotKey(sh2, 16, [7, 2.5, 6], [0, 1.2, 0], 40);
+  const sh3 = addShot('زغاريد الختام', 16, 25); sh3.transition = 'fade';
+  shotKey(sh3, 16, [3, 2, 5], [0, 1.3, 0], 36);
+  shotKey(sh3, 25, [0, 11, 16], [0, 2, 2], 50);
+  S.music.mood = 'happy';
+  S.sfx = [
+    { id: genId(), time: 0.5, type: 'crowd' }, { id: genId(), time: 4, type: 'bell' },
+    { id: genId(), time: 8, type: 'crowd' }, { id: genId(), time: 12, type: 'magic' },
+    { id: genId(), time: 16, type: 'crowd' }, { id: genId(), time: 21, type: 'bell' },
+  ];
+  S.texts = [
+    { id: genId(), time: 0.3, dur: 2.8, text: 'فرح في الحارة', style: 'card', color: '#e8608a' },
+    { id: genId(), time: 22, dur: 2.6, text: 'بالرفاء والبنين', style: 'title', color: '#e8608a' },
+  ];
+  S.bubbles = [
+    { id: genId(), objId: friend1.id, time: 4.2, dur: 2.6, text: 'مبروك يا صاحبي!' },
+    { id: genId(), objId: groom.id, time: 10.5, dur: 2.8, text: 'أحلى يوم في حياتي!' },
+    { id: genId(), objId: friend2.id, time: 14, dur: 2.6, text: 'زغروطة للعروسة!' },
+  ];
+  S.sun.tod = 0.72; S.sun.intensity = 0.75; S.ambient = 0.55;
+  addSpot({ pos: [-4, 6, 5], color: 0xff7090, intensity: 80, target: [0, 1, 0] });
+  addSpot({ pos: [4, 6, 5], color: 0xffc060, intensity: 80, target: [0, 1, 0] });
+  seek(0); applySun();
+}
 
 // ---------- اختيار القالب ----------
 document.getElementById('btn-demo').onclick = () => {
@@ -1746,6 +1801,7 @@ document.getElementById('btn-demo').onclick = () => {
     { t: '🏜️ لقاء عند الأهرام', fn: () => { buildDemo(); refreshAfterLoad(); overlay(false); toast('مشهد: لقاء عند الأهرام ▶'); } },
     { t: '🗡️ مطاردة في الصحراء', fn: () => { buildDemoChase(); refreshAfterLoad(); overlay(false); toast('مشهد: مطاردة في الصحراء ▶'); } },
     { t: '🌙 ليلة على النيل', fn: () => { buildDemoNile(); refreshAfterLoad(); overlay(false); toast('مشهد: ليلة على النيل ▶'); } },
+    { t: '💃 فرح في الحارة', fn: () => { buildDemoWedding(); refreshAfterLoad(); overlay(false); toast('مشهد: فرح في الحارة ▶'); } },
     { t: 'إلغاء', fn: () => overlay(false) },
   ]);
 };
@@ -1807,7 +1863,7 @@ function makeBubbleTexture(text) {
   c.width = 640; c.height = 300;
   const g = c.getContext('2d');
   g.direction = 'rtl'; g.textAlign = 'center';
-  g.font = '700 44px Cairo, sans-serif';
+  g.font = '700 52px Cairo, sans-serif';
   // تقسيم السطور
   const words = text.split(' ');
   const lines = []; let line = '';
@@ -1816,7 +1872,7 @@ function makeBubbleTexture(text) {
     else line = line ? line + ' ' + w : w;
   }
   if (line) lines.push(line);
-  const bh = 60 + lines.length * 56;
+  const bh = 66 + lines.length * 62;
   const by = 10;
   g.fillStyle = '#ffffff';
   g.strokeStyle = '#222'; g.lineWidth = 5;
@@ -1826,7 +1882,7 @@ function makeBubbleTexture(text) {
   g.moveTo(300, by + bh); g.lineTo(340, by + bh); g.lineTo(312, by + bh + 48);
   g.closePath(); g.fill(); g.stroke();
   g.fillStyle = '#1a1a22';
-  lines.forEach((l, i) => g.fillText(l, 320, by + 48 + i * 56, 560));
+  lines.forEach((l, i) => g.fillText(l, 320, by + 56 + i * 62, 560));
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -1840,11 +1896,11 @@ function updateBubbles(t) {
       if (!sp) {
         sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeBubbleTexture(b.text), transparent: true, depthTest: false }));
         sp.renderOrder = 3;
-        sp.scale.set(3.4, 1.6, 1);
+        sp.scale.set(4.8, 2.25, 1);
         bubbleSprites.set(b.id, sp);
         const o = getObj(b.objId);
         if (o) o.group.add(sp);
-        sp.position.set(0, 3.6, 0);
+        sp.position.set(0, 4.1, 0);
       }
       sp.visible = true;
     } else if (sp) sp.visible = false;
@@ -1889,4 +1945,4 @@ function checkShotMood() {
       if (S.playing) startMusic(S.time);
     }
   }
-}
+    }
