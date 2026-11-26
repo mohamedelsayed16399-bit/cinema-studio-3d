@@ -16,6 +16,7 @@ export const S = {
   ambient: 0.55,
   spots: [],     // {id,color,intensity,pos:[x,y,z],target:[x,y,z]}
   selected: null,
+  trails: 'none',    // مؤثرات خلف المتحركين
   grade: 0,          // فلتر لوني: 0 بدون، 1 سيبيا، 2 أبيض وأسود، 3 مشبع، 4 غروب دافئ
   groundColor: 0xd9c391,   // سطح الأرض: صحراء افتراضيًا
   skyColor: 0,       // 0 = تلقائي حسب وقت اليوم، وإلا لون محدد
@@ -893,7 +894,7 @@ export function serialize() {
     })),
     shots: S.shots, sfx: S.sfx,
     spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
-    bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0, nameTags: !!S.nameTags,
+    bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0, trails: S.trails || 'none', nameTags: !!S.nameTags,
     groundColor: S.groundColor || 0xd9c391, skyColor: S.skyColor || 0, fogFar: S.fogFar || 220,
   });
 }
@@ -918,7 +919,7 @@ export function deserialize(json) {
   S.bubbles = d.bubbles || [];
   S.slowmo = d.slowmo || false;
   S.grade = d.grade || 0;
-  S.nameTags = d.nameTags || false;
+  S.nameTags = d.nameTags || false; S.trails = d.trails || 'none';
   S.groundColor = d.groundColor || 0xd9c391; applyGround();
   S.skyColor = d.skyColor || 0; S.fogFar = d.fogFar || 220;
   const slBtn = document.getElementById('tl-slow'); if (slBtn) slBtn.classList.toggle('sel', S.slowmo);
@@ -934,7 +935,7 @@ export function clearAll() {
   setWeather('none');
   for (const sp of [...S.spots]) removeSpot(sp.id);
   S.selected = null; S.time = 0;
-  S.grade = 0; S.groundColor = 0xd9c391; S.skyColor = 0; S.fogFar = 220; applyGround();
+  S.grade = 0; S.trails = 'none'; clearTrails(); S.groundColor = 0xd9c391; S.skyColor = 0; S.fogFar = 220; applyGround();
 }
 
 // ---------- كشافات ----------
@@ -1010,6 +1011,7 @@ function animate(now) {
   updateBubbles(S.time);
   updateNameTags();
   updateWeatherFX(S.time, dt);
+  updateTrails(S.time, dt);
   if (S.playing) {
     const sh = activeShot(S.time);
     const cam = sh ? sampleShotCam(sh, S.time) : null;
@@ -1548,6 +1550,7 @@ function renderLightTab() {
     <div class="row"><label>قوة الشمس</label><input type="range" id="sun-int" min="0" max="2.5" step="0.05" value="${S.sun.intensity}"></div>
     <div class="row"><label>إضاءة عامة</label><input type="range" id="amb-int" min="0" max="1.5" step="0.05" value="${S.ambient}"></div>
     <div class="sec"><h4>🎨 أجواء جاهزة بضغطة</h4><div style="display:flex;flex-wrap:wrap;gap:6px">${ATMOS.map(([k, n]) => `<button class="chip-btn" data-atmos="${k}">${n}</button>`).join('')}</div></div>
+    <div class="row"><label>أثر خلف المتحركين</label><select id="trail-sel">${TRAIL_TYPES.map(([v, n]) => `<option value="${v}" ${S.trails === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="row"><label>الطقس</label><select id="weather-sel">
       <option value="none" ${S.weather === 'none' ? 'selected' : ''}>بدون ☀️</option>
       <option value="rain" ${S.weather === 'rain' ? 'selected' : ''}>مطر 🌧️</option>
@@ -1576,6 +1579,7 @@ function renderLightTab() {
   document.getElementById('sun-int').oninput = e => { S.sun.intensity = +e.target.value; applySun(); };
   document.getElementById('amb-int').oninput = e => { S.ambient = +e.target.value; applySun(); };
   panelBody.querySelectorAll('[data-atmos]').forEach(b => b.onclick = () => { applyAtmos(b.dataset.atmos); toast('الأجواء: ' + b.textContent); saveLocal(); renderPanel(); });
+  document.getElementById('trail-sel').onchange = e => { S.trails = e.target.value; clearTrails(); toast('الأثر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('weather-sel').onchange = e => { setWeather(e.target.value); toast('الطقس: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('grade-sel').onchange = e => { S.grade = +e.target.value; toast('الفلتر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('sky-sel').onchange = e => { S.skyColor = +e.target.value; S.fogFar = S.skyColor === 0x0a5a78 ? 55 : 220; applySun(); toast('السماء: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
@@ -1990,6 +1994,62 @@ export function setWeather(type) {
   weatherPts = new THREE.Points(geo, mat);
   weatherPts.frustumCulled = false;
   scene.add(weatherPts);
+}
+
+// ---------- مؤثرات خلف المتحركين (غبار / دخان / شرر) ----------
+export const TRAIL_TYPES = [['none', 'بدون'], ['dust', 'غبار 💨'], ['smoke', 'دخان 🌫️'], ['spark', 'شرر ✨'], ['bubbles', 'فقاعات 🫧']];
+var TRAIL_MAX = 90;
+var trailPool = [];
+var trailIdx = 0, trailPrev = new Map(), trailLastT = 0;
+var trailGeo = new THREE.IcosahedronGeometry(0.5, 0);
+function ensureTrailPool() {
+  if (trailPool.length) return;
+  for (let i = 0; i < TRAIL_MAX; i++) {
+    const m = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ color: 0xcdb98a, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+    m.visible = false; m.userData.age = 99; m.userData.life = 1; m.renderOrder = 5;
+    scene.add(m); trailPool.push(m);
+  }
+}
+export function clearTrails() { if (!trailPool || !trailPrev) return; for (const m of trailPool) { m.visible = false; m.userData.age = 99; } trailPrev.clear(); }
+function updateTrails(t, dt) {
+  if (S.trails === 'none' && !trailPool.some(m => m.visible)) return;
+  ensureTrailPool();
+  const jumped = Math.abs(t - trailLastT) > 0.3 || t < trailLastT;
+  trailLastT = t;
+  if (jumped) clearTrails();
+  const kind = S.trails;
+  if (kind !== 'none' && S.playing && dt > 0) {
+    for (const o of S.objects) {
+      const g = o.group, pv = trailPrev.get(o.id);
+      const cur = { x: g.position.x, z: g.position.z };
+      trailPrev.set(o.id, cur);
+      if (!pv) continue;
+      const sp = Math.hypot(cur.x - pv.x, cur.z - pv.z) / dt;
+      if (sp < 1.2 || sp > 60) continue;
+      const n = sp > 6 ? 2 : 1;
+      for (let k = 0; k < n; k++) {
+        const m = trailPool[trailIdx++ % TRAIL_MAX], u = m.userData;
+        u.age = 0; u.kind = kind;
+        u.life = kind === 'spark' ? 0.45 : kind === 'smoke' ? 1.6 : kind === 'bubbles' ? 1.8 : 0.9;
+        u.vy = kind === 'bubbles' ? 1.2 : kind === 'smoke' ? 0.9 : kind === 'spark' ? 1.5 + Math.random() : 0.5;
+        u.base = kind === 'spark' ? 0.12 : kind === 'bubbles' ? 0.16 : kind === 'smoke' ? 0.45 : 0.32;
+        u.grow = kind === 'smoke' ? 2.2 : kind === 'dust' ? 1.8 : kind === 'bubbles' ? 0.4 : -0.6;
+        m.material.color.setHex(kind === 'spark' ? 0xffc844 : kind === 'smoke' ? 0x8a8a90 : kind === 'bubbles' ? 0xbfefff : 0xcdb98a);
+        m.position.set(g.position.x - (cur.x - pv.x) * 3 + (Math.random() - 0.5) * 0.5, 0.18 + Math.random() * 0.3, g.position.z - (cur.z - pv.z) * 3 + (Math.random() - 0.5) * 0.5);
+        m.visible = true;
+      }
+    }
+  } else if (!S.playing) trailPrev.clear();
+  for (const m of trailPool) {
+    const u = m.userData;
+    if (!m.visible) continue;
+    if (S.playing) u.age += dt;
+    const f = u.age / u.life;
+    if (f >= 1) { m.visible = false; continue; }
+    m.position.y += (S.playing ? u.vy * dt : 0);
+    m.scale.setScalar(Math.max(0.05, u.base * (1 + u.grow * f)));
+    m.material.opacity = (u.kind === 'spark' ? 0.95 : 0.55) * (1 - f);
+  }
 }
 function updateWeatherFX(t, dt) {
   if (!weatherPts) return;
