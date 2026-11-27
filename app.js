@@ -1548,6 +1548,7 @@ function renderShotsTab() {
     <div class="row"><input type="text" id="sh-name" placeholder="اسم اللقطة">
     <button class="chip-btn sel" id="sh-split">✂️ قسّم عند ${S.time.toFixed(1)}ث</button></div>
     <button class="chip-btn" id="sh-add" style="width:100%">＋ لقطة جديدة تغطي باقي الفيلم</button>
+    <button class="chip-btn sel" id="sh-auto" style="width:100%;margin-top:6px">🎬 مخرج تلقائي: يوزّع اللقطات وحركات الكاميرا لوحده</button>
   </div>`;
   S.shots.forEach((sh, i) => {
     html += `<div class="sec"><h4 style="color:${SHOT_COLORS[i % 6]}">${esc(sh.name)} <span class="mini" data-del-shot="${sh.id}">حذف ✕</span></h4>
@@ -1588,6 +1589,32 @@ function renderShotsTab() {
     if (t0 >= S.filmDur) return toast('اللقطات تغطي الفيلم كله');
     addShot(document.getElementById('sh-name').value.trim() || undefined, t0, S.filmDur);
     renderPanel(); drawTimeline();
+  };
+  document.getElementById('sh-auto').onclick = () => {
+    const chars = S.objects.filter(o => o.kind === 'char');
+    const pts = S.objects.map(o => o.group.position);
+    if (!pts.length) return toast('ضيف ممثلين أو عناصر للمشهد الأول');
+    const run = () => {
+      const D = S.filmDur, cx = pts.reduce((a, p) => a + p.x, 0) / pts.length, cy = 0, cz = pts.reduce((a, p) => a + p.z, 0) / pts.length;
+      const A = chars[0] || null, B = chars[chars.length > 1 ? Math.floor(chars.length / 2) : 0] || null;
+      const pos = o => { const p = o.group.position; return [p.x, p.y, p.z]; };
+      const plan = [
+        ['افتتاحية واسعة', 0, 0.28, 'orbit', [cx, cy, cz], null, 'fade', 0],
+        ['اقتراب', 0.28, 0.5, 'dollyin', A ? pos(A) : [cx, cy, cz], A, 'cut', 0],
+        ['لقطة بطولية', 0.5, 0.74, 'hero', B ? pos(B) : [cx, cy, cz], B, 'cut', 0.5],
+        ['خاتمة', 0.74, 1, 'pullout', [cx, cy, cz], null, 'fade', 0],
+      ];
+      S.shots = [];
+      for (const [name, a, b, type, c, who, tr, shk] of plan) {
+        const sh = addShot(name, +(D * a).toFixed(2), +(D * b).toFixed(2));
+        sh.transition = tr; if (shk) sh.shake = shk;
+        applyCamPreset(sh, type, c, who ? who.id : null);
+      }
+      seek(0); renderPanel(); drawTimeline(); saveLocal(); toast('🎬 المخرج وزّع ' + S.shots.length + ' لقطات بحركات كاميرا');
+    };
+    if (S.shots.length > 1) overlay(true, '', 'المخرج التلقائي هيستبدل اللقطات الحالية (' + S.shots.length + ') بتوزيع جديد. تكمل؟', [
+      { t: 'أيوه، وزّع', cls: 'danger', fn: () => { overlay(false); run(); } }, { t: 'إلغاء', fn: () => overlay(false) }]);
+    else run();
   };
   document.getElementById('sh-split').onclick = () => {
     const sh = S.shots.find(s => S.time > s.t0 && S.time < s.t1);
