@@ -560,6 +560,51 @@ export const PROP_DEFS = {
     const l = new THREE.PointLight(0xffa040, 1.8, 11, 1.8); l.position.y = 3.1; l.name = 'firelight'; g.add(l);
     return g;
   }},
+  lighthouse: { name: 'فنار الإسكندرية', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(5, 3, 5), MAT(0xd9cdb0), 0, 1.5, 0));
+    g.add(mesh(new THREE.CylinderGeometry(1.6, 2.1, 6, 8), MAT(0xe6dcc2), 0, 6, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.9, 1.4, 5, 8), MAT(0xf0e8d2), 0, 11.5, 0));
+    g.add(mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.3, 8), MAT(0x7a6a50), 0, 14.1, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.3, 8), new THREE.MeshBasicMaterial({ color: 0xfff2a8 }), 0, 14.9, 0, false));
+    g.add(mesh(new THREE.ConeGeometry(0.8, 0.9, 8), MAT(0x8a3a2a), 0, 16, 0));
+    const l = new THREE.PointLight(0xfff0a0, 2.2, 26, 1.6); l.position.y = 14.9; l.name = 'firelight'; g.add(l);
+    return g;
+  }},
+  mosque: { name: 'مسجد بقبة ومئذنة', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.BoxGeometry(8, 4, 8), MAT(0xe8dcc0), 0, 2, 0));
+    const dome = mesh(new THREE.SphereGeometry(3, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), MAT(0x4a8f86, 0.5), 0, 4, 0); g.add(dome);
+    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 5), MAT(0xd9b44a, 0.4), 0, 7.6, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.55, 0.7, 9, 8), MAT(0xefe4c8), 5.2, 4.5, 3));
+    g.add(mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.3, 8), MAT(0xb8a070), 5.2, 8.8, 3));
+    g.add(mesh(new THREE.ConeGeometry(0.6, 1.6, 8), MAT(0x4a8f86, 0.5), 5.2, 9.9, 3));
+    g.add(mesh(new THREE.BoxGeometry(1.6, 2.6, 0.2), MAT(0x5a3a22), 0, 1.3, 4.05));
+    return g;
+  }},
+  helicopter: { name: 'هليكوبتر', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.SphereGeometry(1.4, 12, 10), MAT(0xc9382e, 0.4), 0, 3.4, 0));
+    g.children[0].scale.set(1, 0.85, 1.5);
+    g.add(mesh(new THREE.CylinderGeometry(0.18, 0.3, 3.6, 6), MAT(0xc9382e, 0.4), 0, 3.6, -3.1));
+    g.children[1].rotation.x = Math.PI / 2;
+    g.add(mesh(new THREE.BoxGeometry(0.1, 1.1, 0.6), MAT(0xc9382e, 0.4), 0, 4, -4.8));
+    g.add(mesh(new THREE.SphereGeometry(0.8, 10, 8), new THREE.MeshStandardMaterial({ color: 0x9fd8ee, roughness: 0.1, metalness: 0.2 }), 0, 3.6, 1.1));
+    g.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.5, 5), MAT(0x333333), 0, 4.55, 0));
+    const rotor = new THREE.Group(); rotor.name = 'rotor'; rotor.position.set(0, 4.85, 0);
+    for (let i = 0; i < 2; i++) { const b = mesh(new THREE.BoxGeometry(7.5, 0.06, 0.28), MAT(0x2b2b2b), 0, 0, 0, false); b.rotation.y = i * Math.PI / 2; rotor.add(b); }
+    g.add(rotor);
+    for (const x of [-0.9, 0.9]) g.add(mesh(new THREE.BoxGeometry(0.1, 0.1, 2.6), MAT(0x333333), x, 2.1, 0.2));
+    return g;
+  }},
+  balloon: { name: 'منطاد', make() {
+    const g = new THREE.Group();
+    const cols = [0xe0463a, 0xf2c14e, 0x3a8fd9, 0x4fb286];
+    for (let i = 0; i < 8; i++) g.add(mesh(new THREE.SphereGeometry(3, 10, 14, i * Math.PI / 4, Math.PI / 4), MAT(cols[i % 4], 0.6), 0, 8, 0));
+    g.add(mesh(new THREE.BoxGeometry(1.4, 0.9, 1.4), MAT(0x7a5a3a), 0, 3.3, 0));
+    for (const [x, z] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 3.2, 4), MAT(0x333333), x * 1.2, 5.4, z * 1.2));
+    return g;
+  }},
 };
 function makeFish(color, s, yT) {
   const g = new THREE.Group();
@@ -1117,6 +1162,7 @@ function applyTime(t) {
     if (m.name === 'fishtail') m.rotation.y = Math.sin(t * 9 + m.id) * 0.5;
     if (m.name === 'sway') m.rotation.z = Math.sin(t * 1.6 + m.id) * 0.18;
     if (m.name === 'subprop') m.rotation.x = t * 14;
+    if (m.name === 'rotor') m.rotation.y = t * 34;
   });
   // كشافات تكنس المكان أو تنبض كإنذار
   for (const sp of S.spots) {
