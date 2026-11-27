@@ -823,7 +823,13 @@ export function shotKey(sh, t, pos, look, fov, lookObj) {
   if (ex) Object.assign(ex, key); else sh.keys.push(key);
   sh.keys.sort((a, b) => a.t - b.t);
 }
-export function activeShot(t) {
+export function shotSpeed(sh) {
+  if (!sh || !sh.slow) return S.slowmo ? 0.4 : 1;
+  if (!sh.ramp) return sh.slow;
+  const f = Math.min(1, Math.max(0, (S.time - sh.t0) / Math.max(0.1, sh.t1 - sh.t0)));
+  return 1 - (1 - sh.slow) * Math.sin(Math.PI * f);
+}
+function activeShot(t) {
   if (!S.shots.length) return null;
   return S.shots.find(s => t >= s.t0 && t < s.t1) || S.shots[S.shots.length - 1];
 }
@@ -1177,7 +1183,7 @@ function animate(now) {
   lastFrame = now;
   if (S.playing) {
     const prev = S.time;
-    { const shs = activeShot(S.time); applyTime(S.time + dt * ((shs && shs.slow) || (S.slowmo ? 0.4 : 1))); }
+    { const shs = activeShot(S.time); applyTime(S.time + dt * shotSpeed(shs)); }
     checkSfx(prev, S.time);
     checkNarr(prev, S.time);
     checkShotMood();
@@ -1615,7 +1621,7 @@ function renderShotsTab() {
         <option value="pulse" ${sh.shake === 'pulse' ? 'selected' : ''}>نبضة قلب 💓</option>
         <option value="hand" ${sh.shake === 'hand' ? 'selected' : ''}>كاميرا على الكتف 🎥</option></select></div>
       <div class="row"><label>سرعة اللقطة</label><select data-shot-slow="${sh.id}">
-        ${[['', 'عادية'], ['0.6', 'بطيئة 🐢'], ['0.3', 'سلو-مو 🎞️'], ['0.15', 'سلو-مو شديد ⏳']].map(([v, n]) => `<option value="${v}" ${String(sh.slow || '') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+        ${[['', 'عادية'], ['0.6', 'بطيئة 🐢'], ['0.3', 'سلو-مو 🎞️'], ['0.15', 'سلو-مو شديد ⏳'], ['r0.2', 'تباطؤ تدريجي (ينزل ويرجع) 🎢']].map(([v, n]) => `<option value="${v}" ${(sh.ramp && sh.slow ? 'r' + sh.slow : String(sh.slow || '')) === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div class="row"><label>طقس اللقطة</label><select data-shot-weather="${sh.id}">
         ${[['', 'نفس العام'], ['none', 'صافي ☀️'], ['rain', 'مطر 🌧️'], ['snow', 'ثلج ❄️'], ['dust', 'عاصفة رملية 🌪️'], ['bubble', 'فقاعات 🫧'], ['firefly', 'يراعات ✨']].map(([v, n]) => `<option value="${v}" ${(sh.weather || '') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div class="row"><label>تتبع المحدد</label><input type="checkbox" id="sh-follow-${sh.id}" style="width:18px;height:18px;accent-color:var(--accent)" ${getObj(S.selected) && getObj(S.selected).kind === 'char' ? '' : 'disabled'}></div>
@@ -1701,7 +1707,7 @@ function renderShotsTab() {
   });
   panelBody.querySelectorAll('[data-shot-slow]').forEach(el => el.onchange = () => {
     const sh = S.shots.find(s => s.id === el.dataset.shotSlow);
-    sh.slow = el.value ? +el.value : null; toast(sh.slow ? 'سرعة اللقطة: ' + (sh.slow <= 0.15 ? 'سلو-مو شديد ⏳' : sh.slow <= 0.3 ? 'سلو-مو 🎞️' : 'بطيئة 🐢') + ' (الفيديو المصدّر هيطول بنفس النسبة)' : 'سرعة اللقطة: عادية'); saveLocal();
+    sh.ramp = el.value.startsWith('r'); sh.slow = el.value ? +el.value.replace('r', '') : null; toast(sh.slow ? 'سرعة اللقطة: ' + (sh.slow <= 0.15 ? 'سلو-مو شديد ⏳' : sh.slow <= 0.3 ? 'سلو-مو 🎞️' : 'بطيئة 🐢') + ' (الفيديو المصدّر هيطول بنفس النسبة)' : 'سرعة اللقطة: عادية'); saveLocal();
   });
   panelBody.querySelectorAll('[data-shot-weather]').forEach(el => el.onchange = () => {
     const sh = S.shots.find(s => s.id === el.dataset.shotWeather);
