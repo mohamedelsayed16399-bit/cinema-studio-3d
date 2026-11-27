@@ -787,6 +787,7 @@ export function activeShot(t) {
 export const CAM_PRESETS = [
   ['orbit', '🔄 دوران حول الهدف'], ['dollyin', '🔍 اقتراب بطيء'], ['pullout', '↔️ ابتعاد وكشف'],
   ['crane', '🏗️ رافعة للأعلى'], ['whip', '⚡ تتبع جانبي'], ['hero', '🦸 لقطة بطولية من تحت'], ['driveby', '🚗 مرور سريع بجانب الكاميرا'],
+  ['vertigo', '😵 زوم دوار (فيرتيجو)'], ['topdown', '🛰️ من فوق بنزول'], ['spiral', '🌀 لولب صاعد'], ['lowslide', '🛹 انزلاق منخفض'],
 ];
 export function applyCamPreset(sh, type, center, lookObj) {
   const [cx, cy, cz] = center, d = Math.max(0.5, sh.t1 - sh.t0), t0 = sh.t0;
@@ -806,6 +807,15 @@ export function applyCamPreset(sh, type, center, lookObj) {
     add(t0, [cx - 14, cy + 2, cz + 6], look, 40, true); add(t0 + d, [cx + 14, cy + 2, cz + 6], look, 40, true);
   } else if (type === 'driveby') {
     add(t0, [cx - 2, cy + 0.6, cz + 5], [cx - 12, cy + 1.2, cz], 58, true); add(t0 + d * 0.5, [cx - 2, cy + 0.6, cz + 5], [cx, cy + 1.2, cz], 48, true); add(t0 + d, [cx - 2, cy + 0.6, cz + 5], [cx + 12, cy + 1.2, cz], 58, true);
+  } else if (type === 'vertigo') {
+    add(t0, [cx, cy + 1.8, cz + 16], look, 27, true); add(t0 + d, [cx, cy + 1.8, cz + 5], look, 75, true);
+  } else if (type === 'topdown') {
+    add(t0, [cx, cy + 22, cz + 0.5], [cx, cy, cz], 50, false); add(t0 + d, [cx + 2, cy + 7, cz + 7], look, 46, false);
+  } else if (type === 'spiral') {
+    const R = 10, N = 10;
+    for (let i = 0; i <= N; i++) { const a = (i / N) * Math.PI * 2; add(t0 + d * i / N, [cx + Math.sin(a) * R, cy + 1.5 + (i / N) * 10, cz + Math.cos(a) * R], look, 48, true); }
+  } else if (type === 'lowslide') {
+    add(t0, [cx - 10, cy + 0.35, cz + 3.5], [cx, cy + 1.2, cz], 55, true); add(t0 + d, [cx + 10, cy + 0.35, cz + 3.5], [cx, cy + 1.2, cz], 55, true);
   } else if (type === 'hero') {
     add(t0, [cx + 2, cy + 0.3, cz + 7], [cx, cy + 2.4, cz], 62, false); add(t0 + d, [cx - 2, cy + 0.5, cz + 4.5], [cx, cy + 2.6, cz], 52, false);
   }
