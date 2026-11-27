@@ -1144,7 +1144,12 @@ function animate(now) {
       } else filmCam.lookAt(...cam.look);
       filmCam.fov = cam.fov || 50;
       filmCam.updateProjectionMatrix();
-      if (sh.shake) {
+      if (typeof sh.shake === 'string') {
+        const t = S.time, k = sh.shake;
+        if (k === 'quake') { const a = 0.05 * (0.6 + 0.4 * Math.sin(t * 2.3)); filmCam.rotation.x += Math.sin(t * 19) * a; filmCam.rotation.y += Math.sin(t * 23 + 2) * a; filmCam.rotation.z += Math.sin(t * 15) * a * 0.6; }
+        else if (k === 'pulse') { const ph = (t * 1.25) % 1, p = Math.exp(-ph * 9) * Math.sin(ph * 40); filmCam.rotation.x += p * 0.03; filmCam.fov = (cam.fov || 50) * (1 - Math.exp(-ph * 9) * 0.04); filmCam.updateProjectionMatrix(); }
+        else if (k === 'hand') { filmCam.rotation.x += Math.sin(t * 1.7) * 0.012 + Math.sin(t * 3.1) * 0.006; filmCam.rotation.y += Math.sin(t * 1.3 + 1) * 0.014; filmCam.rotation.z += Math.sin(t * 0.9) * 0.006; }
+      } else if (sh.shake) {
         const s = sh.shake * 0.028;
         filmCam.rotation.x += Math.sin(S.time * 37) * s + Math.sin(S.time * 71) * s * 0.4;
         filmCam.rotation.y += Math.sin(S.time * 43 + 1.3) * s;
@@ -1546,7 +1551,10 @@ function renderShotsTab() {
       <label>هزة</label><select data-shot-shake="${sh.id}">
         <option value="" ${!sh.shake ? 'selected' : ''}>بدون</option>
         <option value="0.5" ${sh.shake === 0.5 ? 'selected' : ''}>خفيفة</option>
-        <option value="1" ${sh.shake === 1 ? 'selected' : ''}>قوية</option></select></div>
+        <option value="1" ${sh.shake === 1 ? 'selected' : ''}>قوية</option>
+        <option value="quake" ${sh.shake === 'quake' ? 'selected' : ''}>زلزال 🌋</option>
+        <option value="pulse" ${sh.shake === 'pulse' ? 'selected' : ''}>نبضة قلب 💓</option>
+        <option value="hand" ${sh.shake === 'hand' ? 'selected' : ''}>كاميرا على الكتف 🎥</option></select></div>
       <div class="row"><label>طقس اللقطة</label><select data-shot-weather="${sh.id}">
         ${[['', 'نفس العام'], ['none', 'صافي ☀️'], ['rain', 'مطر 🌧️'], ['snow', 'ثلج ❄️'], ['dust', 'عاصفة رملية 🌪️'], ['bubble', 'فقاعات 🫧'], ['firefly', 'يراعات ✨']].map(([v, n]) => `<option value="${v}" ${(sh.weather || '') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div class="row"><label>تتبع المحدد</label><input type="checkbox" id="sh-follow-${sh.id}" style="width:18px;height:18px;accent-color:var(--accent)" ${getObj(S.selected) && getObj(S.selected).kind === 'char' ? '' : 'disabled'}></div>
@@ -1608,7 +1616,7 @@ function renderShotsTab() {
   });
   panelBody.querySelectorAll('[data-shot-shake]').forEach(el => el.onchange = () => {
     const sh = S.shots.find(s => s.id === el.dataset.shotShake);
-    sh.shake = el.value ? +el.value : null; toast('هزة الكاميرا: ' + (sh.shake ? (sh.shake === 1 ? 'قوية 📳' : 'خفيفة') : 'بدون')); saveLocal();
+    sh.shake = el.value ? (isNaN(+el.value) ? el.value : +el.value) : null; toast('هزة الكاميرا: ' + ({quake:'زلزال 🌋',pulse:'نبضة قلب 💓',hand:'على الكتف 🎥'}[sh.shake] || (sh.shake ? (sh.shake === 1 ? 'قوية 📳' : 'خفيفة') : 'بدون'))); saveLocal();
   });
   panelBody.querySelectorAll('[data-shot-rename]').forEach(el => el.onchange = () => {
     const sh = S.shots.find(s => s.id === el.dataset.shotRename);
