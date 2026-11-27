@@ -1127,6 +1127,7 @@ function animate(now) {
   }
   updateBubbles(S.time);
   updateNameTags();
+  { const shw = activeShot(S.time); const want = (shw && shw.weather) || S.weather || 'none'; if (want !== weatherType) setWeather(want, true); }
   updateWeatherFX(S.time, dt);
   updateTrails(S.time, dt);
   if (S.playing) {
@@ -1546,6 +1547,8 @@ function renderShotsTab() {
         <option value="" ${!sh.shake ? 'selected' : ''}>بدون</option>
         <option value="0.5" ${sh.shake === 0.5 ? 'selected' : ''}>خفيفة</option>
         <option value="1" ${sh.shake === 1 ? 'selected' : ''}>قوية</option></select></div>
+      <div class="row"><label>طقس اللقطة</label><select data-shot-weather="${sh.id}">
+        ${[['', 'نفس العام'], ['none', 'صافي ☀️'], ['rain', 'مطر 🌧️'], ['snow', 'ثلج ❄️'], ['dust', 'عاصفة رملية 🌪️'], ['bubble', 'فقاعات 🫧'], ['firefly', 'يراعات ✨']].map(([v, n]) => `<option value="${v}" ${(sh.weather || '') === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       <div class="row"><label>تتبع المحدد</label><input type="checkbox" id="sh-follow-${sh.id}" style="width:18px;height:18px;accent-color:var(--accent)" ${getObj(S.selected) && getObj(S.selected).kind === 'char' ? '' : 'disabled'}></div>
       <div class="row"><label>حركة كاميرا جاهزة</label><select id="sh-pre-${sh.id}">${CAM_PRESETS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
       <button class="chip-btn" data-shot-pre="${sh.id}" style="width:100%;margin-bottom:6px">🎬 طبّق الحركة على هذه اللقطة</button>
@@ -1598,6 +1601,10 @@ function renderShotsTab() {
   panelBody.querySelectorAll('[data-shot-mood]').forEach(el => el.onchange = () => {
     const sh = S.shots.find(s => s.id === el.dataset.shotMood);
     sh.mood = el.value || null; toast('موسيقى اللقطة: ' + (el.value ? moodName(el.value) : 'الافتراضية')); saveLocal();
+  });
+  panelBody.querySelectorAll('[data-shot-weather]').forEach(el => el.onchange = () => {
+    const sh = S.shots.find(s => s.id === el.dataset.shotWeather);
+    sh.weather = el.value || null; toast('طقس اللقطة: ' + (el.selectedOptions[0].textContent)); saveLocal();
   });
   panelBody.querySelectorAll('[data-shot-shake]').forEach(el => el.onchange = () => {
     const sh = S.shots.find(s => s.id === el.dataset.shotShake);
@@ -2102,7 +2109,7 @@ function updateFade(t) {
 }
 
 // ---------- الطقس ----------
-var weatherPts = null, weatherVel = null;
+var weatherPts = null, weatherVel = null, weatherType = 'none';
 export const ATMOS = [
   ['golden', '🌇 غروب ذهبي', { tod: 0.46, sun: 1.3, amb: 0.7, sky: 0xf0a060, fog: 140, grade: 4, weather: 'none' }],
   ['dawnfog', '🌫️ فجر ضبابي', { tod: 0.02, sun: 0.8, amb: 0.9, sky: 0xcfc4d0, fog: 45, grade: 0, weather: 'dust' }],
@@ -2119,8 +2126,9 @@ export function applyAtmos(key) {
   S.skyColor = c.sky; S.fogFar = c.fog; S.grade = c.grade;
   setWeather(c.weather); applySun();
 }
-export function setWeather(type) {
-  S.weather = type;
+export function setWeather(type, shotOnly) {
+  if (!shotOnly) S.weather = type;
+  weatherType = type;
   if (weatherPts) { scene.remove(weatherPts); weatherPts.geometry.dispose(); weatherPts = null; }
   if (type === 'none') return;
   const N = type === 'dust' ? 500 : type === 'bubble' ? 380 : type === 'firefly' ? 140 : 1600;
@@ -2224,8 +2232,8 @@ function updateTrails(t, dt) {
 function updateWeatherFX(t, dt) {
   if (!weatherPts) return;
   const pos = weatherPts.geometry.attributes.position;
-  const fall = S.weather === 'dust' ? 0.4 : 1;
-  if (S.weather === 'bubble') {
+  const fall = weatherType === 'dust' ? 0.4 : 1;
+  if (weatherType === 'bubble') {
     for (let i = 0; i < weatherVel.length; i++) {
       let y = pos.getY(i) + weatherVel[i] * dt;
       if (y > 16) y = 0;
@@ -2233,7 +2241,7 @@ function updateWeatherFX(t, dt) {
     }
     pos.needsUpdate = true; return;
   }
-  if (S.weather === 'firefly') {
+  if (weatherType === 'firefly') {
     for (let i = 0; i < weatherVel.length; i++) {
       const a = weatherVel[i] + t * 0.7;
       pos.setX(i, pos.getX(i) + Math.cos(a) * dt * 1.2);
@@ -2246,8 +2254,8 @@ function updateWeatherFX(t, dt) {
     let y = pos.getY(i) - weatherVel[i] * dt * fall;
     if (y < 0) y = 28 + Math.random() * 3;
     pos.setY(i, y);
-    if (S.weather === 'snow') pos.setX(i, pos.getX(i) + Math.sin(t * 2 + i) * dt * 0.8);
-    if (S.weather === 'dust') pos.setX(i, pos.getX(i) + dt * 2);
+    if (weatherType === 'snow') pos.setX(i, pos.getX(i) + Math.sin(t * 2 + i) * dt * 0.8);
+    if (weatherType === 'dust') pos.setX(i, pos.getX(i) + dt * 2);
     if (Math.abs(pos.getX(i)) > 62) pos.setX(i, -pos.getX(i) * 0.95);
   }
   pos.needsUpdate = true;
