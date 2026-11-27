@@ -1656,7 +1656,9 @@ function renderShotsTab() {
         sh.transition = tr; if (shk) sh.shake = shk;
         applyCamPreset(sh, type, c, who ? who.id : null);
       }
-      seek(0); renderPanel(); drawTimeline(); saveLocal(); toast('🎬 المخرج وزّع ' + S.shots.length + ' لقطات بحركات كاميرا');
+      S.texts = S.texts.filter(t => !t.autoTitle);
+      S.texts.push({ id: genId(), time: 0.3, dur: Math.min(2.4, D * 0.2), text: S.title || 'فيلمي القصير', style: 'card', color: '#f5b942', autoTitle: true });
+      seek(0); renderPanel(); drawTimeline(); saveLocal(); toast('🎬 المخرج وزّع ' + S.shots.length + ' لقطات + كارت عنوان');
     };
     if (S.shots.length > 1) overlay(true, '', 'المخرج التلقائي هيستبدل اللقطات الحالية (' + S.shots.length + ') بتوزيع جديد. تكمل؟', [
       { t: 'أيوه، وزّع', cls: 'danger', fn: () => { overlay(false); run(); } }, { t: 'إلغاء', fn: () => overlay(false) }]);
