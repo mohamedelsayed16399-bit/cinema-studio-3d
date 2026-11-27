@@ -28,13 +28,15 @@ export const genId = () => 'o' + (nid++);
 
 // ---------- فلاتر لونية (تظهر في التصدير) ----------
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uMode: { value: 0 }, uVig: { value: 0 }, uGrain: { value: 0 }, uT: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, uMode: { value: 0 }, uVig: { value: 0 }, uGrain: { value: 0 }, uT: { value: 0 }, uCA: { value: 0 }, uGlow: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform int uMode; uniform float uVig; uniform float uGrain; uniform float uT; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform int uMode; uniform float uVig; uniform float uGrain; uniform float uT; uniform float uCA; uniform float uGlow; varying vec2 vUv;
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
       vec3 col = c.rgb;
+      if (uCA > 0.0) { vec2 d = (vUv - 0.5) * uCA * 0.014; col.r = texture2D(tDiffuse, vUv + d).r; col.b = texture2D(tDiffuse, vUv - d).b; }
+      if (uGlow > 0.0) { vec3 gl = vec3(0.0); for (int i = 0; i < 8; i++) { float a = float(i) * 0.7854; vec2 o = vec2(cos(a), sin(a)); gl += max(texture2D(tDiffuse, vUv + o * 0.006).rgb - 0.55, 0.0); gl += max(texture2D(tDiffuse, vUv + o * 0.016).rgb - 0.55, 0.0); } col += gl * uGlow * 0.16; }
       if (uMode == 1) col = vec3(dot(col, vec3(.393,.769,.189)), dot(col, vec3(.349,.686,.168)), dot(col, vec3(.272,.534,.131))) * 0.9;
       else if (uMode == 2) { float g = dot(col, vec3(.299,.587,.114)); col = vec3(g * g * 0.4 + g * 0.75); }
       else if (uMode == 3) { float g = dot(col, vec3(.299,.587,.114)); col = clamp(mix(vec3(g), col, 1.65), 0., 1.) * 1.04; }
@@ -58,11 +60,11 @@ function ensureComposer() {
   composer.addPass(new OutputPass());
 }
 function render3D(cam) {
-  if (S.grade || S.vig || S.grain) {
+  if (S.grade || S.vig || S.grain || S.ca || S.glow) {
     ensureComposer();
     renderPass.camera = cam;
     gradePass.uniforms.uMode.value = S.grade;
-    gradePass.uniforms.uVig.value = S.vig || 0; gradePass.uniforms.uGrain.value = S.grain || 0; gradePass.uniforms.uT.value = (performance.now() % 1000) / 1000;
+    gradePass.uniforms.uVig.value = S.vig || 0; gradePass.uniforms.uGrain.value = S.grain || 0; gradePass.uniforms.uT.value = (performance.now() % 1000) / 1000; gradePass.uniforms.uCA.value = S.ca || 0; gradePass.uniforms.uGlow.value = S.glow || 0;
     composer.render();
   } else renderer.render(scene, cam);
 }
@@ -1008,7 +1010,7 @@ export function serialize() {
     })),
     shots: S.shots, sfx: S.sfx,
     spots: S.spots, texts: S.texts || [], weather: S.weather || 'none', narr: S.narr || [],
-    bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0, vig: S.vig || 0, grain: S.grain || 0, trails: S.trails || 'none', nameTags: !!S.nameTags,
+    bubbles: S.bubbles || [], slowmo: S.slowmo || false, grade: S.grade || 0, vig: S.vig || 0, grain: S.grain || 0, ca: S.ca || 0, glow: S.glow || 0, trails: S.trails || 'none', nameTags: !!S.nameTags,
     groundColor: S.groundColor || 0xd9c391, skyColor: S.skyColor || 0, fogFar: S.fogFar || 220,
   });
 }
@@ -1032,7 +1034,7 @@ export function deserialize(json) {
   S.narr = d.narr || [];
   S.bubbles = d.bubbles || [];
   S.slowmo = d.slowmo || false;
-  S.grade = d.grade || 0; S.vig = d.vig || 0; S.grain = d.grain || 0;
+  S.grade = d.grade || 0; S.vig = d.vig || 0; S.grain = d.grain || 0; S.ca = d.ca || 0; S.glow = d.glow || 0;
   S.nameTags = d.nameTags || false; S.trails = d.trails || 'none';
   S.groundColor = d.groundColor || 0xd9c391; applyGround();
   S.skyColor = d.skyColor || 0; S.fogFar = d.fogFar || 220;
@@ -1050,7 +1052,7 @@ export function clearAll() {
   for (const sp of [...S.spots]) removeSpot(sp.id);
   S.selected = null; S.time = 0;
   if (S.sun) { S.sun.tl = null; S.sun.base = null; }
-  S.vig = 0; S.grain = 0;
+  S.vig = 0; S.grain = 0; S.ca = 0; S.glow = 0;
   S.grade = 0; S.trails = 'none'; clearTrails(); S.groundColor = 0xd9c391; S.skyColor = 0; S.fogFar = 220; applyGround();
 }
 
@@ -1718,6 +1720,8 @@ function renderLightTab() {
       ${GRADES.map(([v, n]) => `<option value="${v}" ${S.grade === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <div class="row"><label>تعتيم الأطراف</label><input type="range" id="fx-vig" min="0" max="1" step="0.05" value="${S.vig || 0}"></div>
     <div class="row"><label>حبيبات الفيلم</label><input type="range" id="fx-grain" min="0" max="1" step="0.05" value="${S.grain || 0}"></div>
+    <div class="row"><label>توهج الإضاءة ✨</label><input type="range" id="fx-glow" min="0" max="1" step="0.05" value="${S.glow || 0}"></div>
+    <div class="row"><label>انحراف لوني</label><input type="range" id="fx-ca" min="0" max="1" step="0.05" value="${S.ca || 0}"></div>
     <button class="chip-btn sel" id="fx-cine" style="width:100%">🎞️ مظهر سينمائي بضغطة</button>
   </div>
   <div class="sec"><h4>🔦 كشافات تصوير</h4>
@@ -1743,6 +1747,8 @@ function renderLightTab() {
   document.getElementById('trail-sel').onchange = e => { S.trails = e.target.value; clearTrails(); toast('الأثر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('weather-sel').onchange = e => { setWeather(e.target.value); toast('الطقس: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
   document.getElementById('fx-vig').oninput = e => { S.vig = +e.target.value; saveLocal(); };
+  document.getElementById('fx-glow').oninput = e => { S.glow = +e.target.value; saveLocal(); };
+  document.getElementById('fx-ca').oninput = e => { S.ca = +e.target.value; saveLocal(); };
   document.getElementById('fx-grain').oninput = e => { S.grain = +e.target.value; saveLocal(); };
   document.getElementById('fx-cine').onclick = () => { S.vig = 0.7; S.grain = 0.4; saveLocal(); renderPanel(); toast('🎞️ مظهر سينمائي: أطراف معتمة وحبيبات فيلم'); };
   document.getElementById('grade-sel').onchange = e => { S.grade = +e.target.value; toast('الفلتر: ' + e.target.selectedOptions[0].textContent); saveLocal(); };
