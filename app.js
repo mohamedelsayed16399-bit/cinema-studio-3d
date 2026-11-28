@@ -605,6 +605,36 @@ export const PROP_DEFS = {
     for (const [x, z] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 3.2, 4), MAT(0x333333), x * 1.2, 5.4, z * 1.2));
     return g;
   }},
+  windmill: { name: 'طاحونة هواء', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(1.1, 1.8, 7, 8), MAT(0xe8dcc0), 0, 3.5, 0));
+    g.add(mesh(new THREE.ConeGeometry(1.5, 1.8, 8), MAT(0x8a3a2a), 0, 7.9, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.9, 1.6, 0.2), MAT(0x5a3a22), 0, 0.8, 1.7));
+    const hub = new THREE.Group(); hub.name = 'spinz'; hub.position.set(0, 7, 1.4);
+    for (let i = 0; i < 4; i++) { const b = mesh(new THREE.BoxGeometry(0.5, 4.6, 0.08), MAT(0xf2ead8), 0, 2.4, 0, false); const arm = new THREE.Group(); arm.rotation.z = i * Math.PI / 2; arm.add(b); hub.add(arm); }
+    hub.add(mesh(new THREE.SphereGeometry(0.35, 8, 6), MAT(0x333333), 0, 0, 0.05, false));
+    g.add(hub);
+    return g;
+  }},
+  plane: { name: 'طيارة', make() {
+    const g = new THREE.Group();
+    const body = mesh(new THREE.CylinderGeometry(0.7, 0.5, 6, 10), MAT(0xf2f2f2, 0.4), 0, 4, 0); body.rotation.x = Math.PI / 2; g.add(body);
+    g.add(mesh(new THREE.BoxGeometry(9, 0.12, 1.5), MAT(0x2a6fb8, 0.5), 0, 4, 0.3));
+    g.add(mesh(new THREE.BoxGeometry(3, 0.1, 0.9), MAT(0x2a6fb8, 0.5), 0, 4, -2.7));
+    g.add(mesh(new THREE.BoxGeometry(0.1, 1.3, 0.9), MAT(0xc9382e, 0.5), 0, 4.6, -2.7));
+    g.add(mesh(new THREE.SphereGeometry(0.55, 10, 8), new THREE.MeshStandardMaterial({ color: 0x9fd8ee, roughness: 0.1 }), 0, 4.4, 1.2));
+    const prop = new THREE.Group(); prop.name = 'spinz'; prop.position.set(0, 4, 3.05);
+    prop.add(mesh(new THREE.BoxGeometry(2.2, 0.2, 0.05), MAT(0x222222), 0, 0, 0, false));
+    g.add(prop);
+    return g;
+  }},
+  trafficlight: { name: 'إشارة مرور', make() {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(0.1, 0.12, 4.2, 6), MAT(0x333333), 0, 2.1, 0));
+    g.add(mesh(new THREE.BoxGeometry(0.7, 1.9, 0.5), MAT(0x1b1b1b), 0, 4.4, 0));
+    [[0xe0382e, 5.0], [0xf2c14e, 4.4], [0x3fbf5a, 3.8]].forEach(([c, y]) => g.add(mesh(new THREE.SphereGeometry(0.2, 10, 8), new THREE.MeshBasicMaterial({ color: c }), 0, y, 0.27, false)));
+    return g;
+  }},
 };
 function makeFish(color, s, yT) {
   const g = new THREE.Group();
@@ -1169,6 +1199,7 @@ function applyTime(t) {
     if (m.name === 'sway') m.rotation.z = Math.sin(t * 1.6 + m.id) * 0.18;
     if (m.name === 'subprop') m.rotation.x = t * 14;
     if (m.name === 'rotor') m.rotation.y = t * 34;
+    if (m.name === 'spinz') m.rotation.z = t * 2.4;
   });
   // كشافات تكنس المكان أو تنبض كإنذار
   for (const sp of S.spots) {
