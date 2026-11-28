@@ -628,6 +628,34 @@ export const PROP_DEFS = {
     g.add(prop);
     return g;
   }},
+  cactus: { name: 'صبار', make() {
+    const g = new THREE.Group(); const c = MAT(0x3f8f4a, 0.8);
+    g.add(mesh(new THREE.CylinderGeometry(0.45, 0.5, 3.4, 10), c, 0, 1.7, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.45, 10, 8), c, 0, 3.4, 0));
+    for (const sx of [-1, 1]) { g.add(mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.8, 8), c, sx * 0.75, 1.9, 0).rotateZ(Math.PI / 2)); g.add(mesh(new THREE.CylinderGeometry(0.22, 0.25, 1.2, 8), c, sx * 1.1, 2.5, 0)); g.add(mesh(new THREE.SphereGeometry(0.22, 8, 6), c, sx * 1.1, 3.1, 0)); }
+    return g;
+  }},
+  snowman: { name: 'راجل تلج', make() {
+    const g = new THREE.Group(); const w = MAT(0xf4f8ff, 0.9);
+    g.add(mesh(new THREE.SphereGeometry(1.2, 14, 12), w, 0, 1.2, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.9, 14, 12), w, 0, 2.9, 0));
+    g.add(mesh(new THREE.SphereGeometry(0.65, 14, 12), w, 0, 4.1, 0));
+    g.add(mesh(new THREE.ConeGeometry(0.12, 0.6, 8), MAT(0xf08a2a), 0, 4.1, 0.75).rotateX(Math.PI / 2));
+    for (const x of [-0.22, 0.22]) g.add(mesh(new THREE.SphereGeometry(0.07, 6, 6), MAT(0x111111), x, 4.25, 0.58, false));
+    g.add(mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.55, 10), MAT(0x1b1b1b), 0, 4.95, 0));
+    g.add(mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.06, 12), MAT(0x1b1b1b), 0, 4.7, 0));
+    return g;
+  }},
+  swing: { name: 'مرجيحة', make() {
+    const g = new THREE.Group(); const m = MAT(0x7a5a3a);
+    for (const sx of [-1.6, 1.6]) { const l = mesh(new THREE.CylinderGeometry(0.1, 0.12, 4.2, 6), m, sx, 2.1, 0.8); l.rotation.x = -0.2; g.add(l); const l2 = mesh(new THREE.CylinderGeometry(0.1, 0.12, 4.2, 6), m, sx, 2.1, -0.8); l2.rotation.x = 0.2; g.add(l2); }
+    g.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.4, 6), m, 0, 4.1, 0).rotateZ(Math.PI / 2));
+    const seat = new THREE.Group(); seat.name = 'swingseat'; seat.position.set(0, 4.1, 0);
+    for (const x of [-0.45, 0.45]) seat.add(mesh(new THREE.CylinderGeometry(0.02, 0.02, 3, 4), MAT(0x333333), x, -1.5, 0, false));
+    seat.add(mesh(new THREE.BoxGeometry(1.1, 0.12, 0.45), MAT(0xc9382e), 0, -3, 0));
+    g.add(seat);
+    return g;
+  }},
   trafficlight: { name: 'إشارة مرور', make() {
     const g = new THREE.Group();
     g.add(mesh(new THREE.CylinderGeometry(0.1, 0.12, 4.2, 6), MAT(0x333333), 0, 2.1, 0));
@@ -1200,6 +1228,7 @@ function applyTime(t) {
     if (m.name === 'subprop') m.rotation.x = t * 14;
     if (m.name === 'rotor') m.rotation.y = t * 34;
     if (m.name === 'spinz') m.rotation.z = t * 2.4;
+    if (m.name === 'swingseat') m.rotation.x = Math.sin(t * 2.2) * 0.45;
   });
   // كشافات تكنس المكان أو تنبض كإنذار
   for (const sp of S.spots) {
