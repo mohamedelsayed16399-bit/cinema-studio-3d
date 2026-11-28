@@ -1663,7 +1663,7 @@ function renderShotsTab() {
         applyCamPreset(sh, type, c, who ? who.id : null);
       }
       S.texts = S.texts.filter(t => !t.autoTitle);
-      S.texts.push({ id: genId(), time: 0.3, dur: Math.min(2.4, D * 0.2), text: S.title || 'فيلمي القصير', style: 'card', color: '#f5b942', autoTitle: true });
+        if (!S.texts.some(t => t.style === 'card' && t.time < 3)) S.texts.push({ id: genId(), time: 0.3, dur: Math.min(2.4, D * 0.2), text: S.title || 'فيلمي القصير', style: 'card', color: '#f5b942', autoTitle: true });
       seek(0); renderPanel(); drawTimeline(); saveLocal(); toast('🎬 المخرج وزّع ' + S.shots.length + ' لقطات + كارت عنوان');
     };
     if (S.shots.length > 1) overlay(true, '', 'المخرج التلقائي هيستبدل اللقطات الحالية (' + S.shots.length + ') بتوزيع جديد. تكمل؟', [
